@@ -1,0 +1,162 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    { "title": "All Dashboards", "type": "dashboards", "asDropdown": true, "includeVars": false, "tags": ["claude"] }
+  ],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "sum(claude_code_cost_usage_USD_total)", "refId": "A" }],
+      "title": "Total Cost",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "avg(claude_code_cost_usage_USD_total)", "refId": "A" }],
+      "title": "Avg Cost per Session",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "max(claude_code_cost_usage_USD_total)", "refId": "A" }],
+      "title": "Max Session Cost",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } },
+          "mappings": [],
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "expr": "sum by (model) (claude_code_cost_usage_USD_total)", "legendFormat": "{{model}}", "refId": "A" }],
+      "title": "Cost by Model",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "hideFrom": { "legend": false, "tooltip": false, "viz": false } },
+          "mappings": [],
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 6 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "expr": "sum by (terminal_type) (claude_code_cost_usage_USD_total)", "legendFormat": "{{terminal_type}}", "refId": "A" }],
+      "title": "Cost by Terminal",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["sum", "mean"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[1h]))", "legendFormat": "{{model}}", "refId": "A" }],
+      "title": "Cost Over Time (by Model)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1 }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "id": 7,
+      "options": { "displayMode": "gradient", "minVizHeight": 10, "minVizWidth": 0, "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "valueMode": "color" },
+      "targets": [{ "expr": "sum by (session_id) (claude_code_cost_usage_USD_total)", "legendFormat": "{{session_id}}", "refId": "A" }],
+      "title": "Cost per Session",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Cost" }, "properties": [{ "id": "unit", "value": "currencyUSD" }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 34 },
+      "id": 8,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "enablePagination": true, "reducer": ["sum"], "show": true }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Cost" }] },
+      "targets": [{ "expr": "sum by (session_id, model, terminal_type) (claude_code_cost_usage_USD_total)", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Session Cost Details",
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "Value": "Cost", "model": "Model", "session_id": "Session ID", "terminal_type": "Terminal" } } }],
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["claude", "costs"],
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Claude Code - Costs",
+  "uid": "claude-costs",
+  "version": 1
+}
