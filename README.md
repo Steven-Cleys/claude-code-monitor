@@ -24,6 +24,7 @@ docker compose down -v && docker compose up -d
 |---------|-----|-------------|
 | Grafana | http://localhost:3000 | admin / admin |
 | Prometheus | http://localhost:9090 | - |
+| Loki | http://localhost:3100 | - |
 | OTEL Collector | localhost:4317 (gRPC) | - |
 
 ## Dashboards
@@ -51,13 +52,41 @@ Add to `~/.claude/settings.json`:
   "env": {
     "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
     "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
     "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4317"
   }
 }
 ```
 
+Optional: To include actual prompt text in logs, add:
+```json
+"OTEL_LOG_USER_PROMPTS": "1"
+```
+
 Restart Claude Code after making changes.
+
+### Auto-start Hook (Optional)
+
+Add a SessionStart hook to auto-start the stack when Claude begins:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "docker info >/dev/null 2>&1 && docker compose -f /path/to/claude-code-monitor/docker-compose.yml up -d >/dev/null 2>&1 || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ## Metrics
 
@@ -75,6 +104,22 @@ All metrics from [Claude Code documentation](https://docs.anthropic.com/en/docs/
 | `claude_code_active_time_seconds_total` | Active time | seconds |
 
 Note: Some metrics only appear when relevant events occur (e.g., commits, PRs).
+
+## Events (Logs)
+
+In addition to metrics, Claude Code exports events via OTEL logs (stored in Loki):
+
+| Event | Description |
+|-------|-------------|
+| `user_prompt` | Every prompt submitted (length, timestamp, optionally full text) |
+| `tool_result` | Tool executions (name, success/fail, duration, accept/reject) |
+| `api_request` | API calls to Claude |
+
+Query events in Grafana using the Loki datasource with LogQL:
+
+```logql
+{service_name="claude-code"} | json
+```
 
 ## Metric Labels
 
