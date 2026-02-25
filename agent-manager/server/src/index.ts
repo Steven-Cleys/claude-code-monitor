@@ -5,6 +5,7 @@ import { createBunWebSocket } from "hono/bun";
 import { runMigrations } from "./db/migrate";
 import { createHooksRouter } from "./routes/hooks";
 import { createWebSocketRoute } from "./ws/handler";
+import { startSessionTracker } from "./services/session-tracker";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -27,6 +28,8 @@ app.route("/api/hooks", hooksRouter);
 app.get("/ws", createWebSocketRoute(upgradeWebSocket));
 
 await runMigrations();
+
+startSessionTracker(broadcast);
 
 server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),

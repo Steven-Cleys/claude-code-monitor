@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { storeEvent } from "../services/event-store";
+import { markSessionEnded } from "../services/session-tracker";
 
 type BroadcastFn = (topic: string, data: unknown) => void;
 
@@ -19,6 +20,14 @@ export function createHooksRouter(broadcast: BroadcastFn) {
       type: "new_event",
       data: event,
     });
+
+    if (payload.hook_event_name === "Stop" || payload.hook_event_name === "SessionEnd") {
+      await markSessionEnded(payload.session_id);
+      broadcast("sessions", {
+        type: "session_status_changed",
+        data: { id: payload.session_id, status: "ended" },
+      });
+    }
 
     return c.json({ id: event.id }, 201);
   });
