@@ -6,6 +6,8 @@ import { runMigrations } from "./db/migrate";
 import { createHooksRouter } from "./routes/hooks";
 import { createWebSocketRoute } from "./ws/handler";
 import { startSessionTracker } from "./services/session-tracker";
+import { startLokiPoller } from "./services/loki-poller";
+import { startPrometheusPoller } from "./services/prometheus-poller";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -30,6 +32,8 @@ app.get("/ws", createWebSocketRoute(upgradeWebSocket));
 await runMigrations();
 
 startSessionTracker(broadcast);
+startLokiPoller(broadcast);
+startPrometheusPoller(broadcast);
 
 server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),
