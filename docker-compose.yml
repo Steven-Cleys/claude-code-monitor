@@ -86,6 +86,17 @@ services:
       - prometheus
     restart: unless-stopped
 
+  agent-manager-ui:
+    build:
+      context: ./agent-manager/ui
+      dockerfile: Dockerfile
+    container_name: claude-agent-manager-ui
+    ports:
+      - "3002:3002"
+    depends_on:
+      - agent-manager-server
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   grafana_data:
