@@ -55,7 +55,39 @@ services:
       - loki_data:/loki
     restart: unless-stopped
 
+  postgres:
+    image: postgres:17-alpine
+    container_name: claude-postgres
+    environment:
+      POSTGRES_DB: agent_manager
+      POSTGRES_USER: agent_manager
+      POSTGRES_PASSWORD: agent_manager
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  agent-manager-server:
+    build:
+      context: ./agent-manager/server
+      dockerfile: Dockerfile
+    container_name: claude-agent-manager-server
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      DATABASE_URL: "postgres://agent_manager:agent_manager@postgres:5432/agent_manager"
+      LOKI_URL: "http://loki:3100"
+      PROMETHEUS_URL: "http://prometheus:9090"
+    depends_on:
+      - postgres
+      - loki
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  postgres_data:
