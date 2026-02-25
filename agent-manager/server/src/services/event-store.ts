@@ -5,6 +5,7 @@ interface HookEvent {
   hook_event_name: string;
   cwd: string;
   permission_mode?: string;
+  model?: string;
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   tool_response?: Record<string, unknown>;
@@ -12,14 +13,17 @@ interface HookEvent {
 }
 
 export async function upsertSession(event: HookEvent) {
+  const model = typeof event.model === "string" ? event.model : null;
+
   await sql`
-    INSERT INTO sessions (id, cwd, permission_mode, status, first_seen, last_seen)
-    VALUES (${event.session_id}, ${event.cwd}, ${event.permission_mode ?? null}, 'active', NOW(), NOW())
+    INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
+    VALUES (${event.session_id}, ${event.cwd}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = NOW(),
       status = 'active',
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
-      permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode)
+      permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
+      model = COALESCE(EXCLUDED.model, sessions.model)
   `;
 }
 
