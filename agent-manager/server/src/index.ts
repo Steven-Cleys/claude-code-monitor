@@ -8,6 +8,8 @@ import { createWebSocketRoute } from "./ws/handler";
 import { startSessionTracker } from "./services/session-tracker";
 import { startLokiPoller } from "./services/loki-poller";
 import { startPrometheusPoller } from "./services/prometheus-poller";
+import { sessionsRouter } from "./routes/sessions";
+import { eventsRouter } from "./routes/events";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -28,6 +30,9 @@ const hooksRouter = createHooksRouter(broadcast);
 app.route("/api/hooks", hooksRouter);
 
 app.get("/ws", createWebSocketRoute(upgradeWebSocket));
+
+app.route("/api/sessions", sessionsRouter);
+app.route("/api/events", eventsRouter);
 
 await runMigrations();
 
