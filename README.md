@@ -26,6 +26,9 @@ docker compose down -v && docker compose up -d
 | Prometheus | http://localhost:9090 | - |
 | Loki | http://localhost:3100 | - |
 | OTEL Collector | localhost:4317 (gRPC) | - |
+| Agent Manager UI | http://localhost:3002 | - |
+| Agent Manager API | http://localhost:3001 | - |
+| Postgres | localhost:5433 | agent_manager / agent_manager |
 
 ## Dashboards
 
@@ -176,10 +179,74 @@ curl -s http://localhost:9090/api/v1/label/__name__/values | jq '.data[]' | grep
 curl -s http://localhost:8889/metrics | grep claude_code
 ```
 
+## Agent Manager (Real-Time Dashboard)
+
+The Agent Manager provides a real-time view of active Claude Code sessions with a live tool call timeline. It complements Grafana (which is better for historical cost/usage analysis) with an operational, live view.
+
+### Setup
+
+**Prerequisites:** Docker, jq (`brew install jq`)
+
+```bash
+# 1. Clone and start the stack
+git clone <repo-url> claude-code-monitor
+cd claude-code-monitor
+docker compose up -d
+
+# 2. Install hooks into Claude Code
+./agent-manager/install-hooks.sh
+
+# 3. Restart Claude Code for hooks to take effect
+
+# 4. Open the dashboard
+open http://localhost:3002
+```
+
+That's it. Every Claude Code session will now send events to the dashboard.
+
+### What You See
+
+- **Agent cards** — each active session with model name, working directory, status (active/idle/ended), and event count
+- **Live timeline** — real-time feed of tool calls (Read, Edit, Bash, Grep, etc.) with timestamps and details
+- **Session filtering** — click an agent card to filter the timeline to that session
+- **Time range** — adjust from last 1h to 24h
+
+### Architecture
+
+```
+Claude Code hooks ──stdin──▶ send-hook.sh ──POST──▶ Bun Server (:3001) ──WebSocket──▶ Vue UI (:3002)
+                                                      │
+                                                      ├── Postgres (event storage)
+                                                      ├── Loki (model enrichment)
+                                                      └── Prometheus (token metrics)
+```
+
+### Uninstall Hooks
+
+```bash
+./agent-manager/install-hooks.sh --uninstall
+```
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/health` | Health check |
+| `GET /api/sessions?hours=4` | Active sessions in time range |
+| `GET /api/sessions/:id/events` | Events for a specific session |
+| `GET /api/events?since=ISO&limit=100` | Recent events across all sessions |
+| `ws://localhost:3001/ws` | Live event stream (WebSocket) |
+
 ## Troubleshooting
 
 **Metrics not appearing:**
 - Claude Code won't crash if collector is down - metrics are dropped silently
 - Check OTEL collector logs: `docker compose logs otel-collector`
 - Verify Claude Code config in `~/.claude/settings.json`
+
+**Agent Manager not receiving events:**
+- Verify hooks are installed: check `~/.claude/settings.json` for `send-hook.sh` entries
+- Check server logs: `docker compose logs agent-manager-server`
+- Test manually: `echo '{"session_id":"test","hook_event_name":"Test","cwd":"/tmp"}' | ./agent-manager/hooks/send-hook.sh`
+- Verify server is up: `curl http://localhost:3001/api/health`
 
