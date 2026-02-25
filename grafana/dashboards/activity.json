@@ -21,7 +21,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(claude_code_lines_of_code_count_total)", "refId": "A" }],
+      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_lines_of_code_count_total[$__range])))", "refId": "A" }],
       "title": "Lines Changed",
       "type": "stat"
     },
@@ -38,7 +38,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(claude_code_commit_count_total)", "refId": "A" }],
+      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_commit_count_total[$__range])))", "refId": "A" }],
       "title": "Commits",
       "type": "stat"
     },
@@ -55,7 +55,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(claude_code_pull_request_count_total)", "refId": "A" }],
+      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_pull_request_count_total[$__range])))", "refId": "A" }],
       "title": "Pull Requests",
       "type": "stat"
     },
@@ -72,7 +72,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(claude_code_code_edit_tool_decision_total)", "refId": "A" }],
+      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_code_edit_tool_decision_total[$__range])))", "refId": "A" }],
       "title": "Tool Decisions",
       "type": "stat"
     },
@@ -89,7 +89,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "id": 5,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(claude_code_active_time_seconds_total)", "refId": "A" }],
+      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_active_time_seconds_total[$__range])))", "refId": "A" }],
       "title": "Total Active Time",
       "type": "stat"
     },
@@ -106,7 +106,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "id": 6,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(claude_code_session_count_total)", "refId": "A" }],
+      "targets": [{ "expr": "count(group by (session_id) (max_over_time(claude_code_session_count_total[$__range])))", "refId": "A" }],
       "title": "Session Count",
       "type": "stat"
     },
@@ -145,7 +145,7 @@
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 26 },
       "id": 8,
       "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [{ "expr": "sum by (terminal_type) (claude_code_active_time_seconds_total)", "legendFormat": "{{terminal_type}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (terminal_type) (max by (session_id, terminal_type) (max_over_time(claude_code_active_time_seconds_total[$__range])))", "legendFormat": "{{terminal_type}}", "refId": "A" }],
       "title": "Active Time by Terminal",
       "type": "piechart"
     },
@@ -162,7 +162,7 @@
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 26 },
       "id": 9,
       "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [{ "expr": "sum by (terminal_type) (claude_code_lines_of_code_count_total)", "legendFormat": "{{terminal_type}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (terminal_type) (max by (session_id, terminal_type) (max_over_time(claude_code_lines_of_code_count_total[$__range])))", "legendFormat": "{{terminal_type}}", "refId": "A" }],
       "title": "Lines Changed by Terminal",
       "type": "piechart"
     },
@@ -179,7 +179,7 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
       "id": 10,
       "options": { "displayMode": "gradient", "minVizHeight": 10, "minVizWidth": 0, "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "valueMode": "color" },
-      "targets": [{ "expr": "sum by (session_id) (claude_code_active_time_seconds_total)", "legendFormat": "{{session_id}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (session_id) (max by (session_id) (max_over_time(claude_code_active_time_seconds_total[$__range])))", "legendFormat": "{{session_id}}", "refId": "A" }],
       "title": "Active Time per Session",
       "type": "bargauge"
     }
