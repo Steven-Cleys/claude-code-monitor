@@ -221,6 +221,17 @@ Claude Code hooks ──stdin──▶ send-hook.sh ──POST──▶ Bun Serv
                                                       └── Prometheus (token metrics)
 ```
 
+### Data Sources
+
+Hooks are the **primary data source** — they provide the real-time event stream and session tracking. OTEL/Loki/Prometheus are **enrichment layers** that add data the hooks don't carry.
+
+| Data | Source | Mechanism |
+|------|--------|-----------|
+| Sessions (id, cwd, permission_mode, status) | Hooks | Upserted on every hook event via `POST /api/hooks` |
+| Events (tool calls, session lifecycle) | Hooks | `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, etc. |
+| Model name | Both | Hooks may include `model` field; Loki poller backfills from OTEL logs (every 15s) |
+| Token counts (input, output, cacheRead, cacheCreation) | Prometheus | Poller queries `claude_code_token_usage_tokens_total` (every 30s) |
+
 ### Uninstall Hooks
 
 ```bash
