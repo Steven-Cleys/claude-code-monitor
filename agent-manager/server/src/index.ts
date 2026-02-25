@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { createBunWebSocket } from "hono/bun";
 import { runMigrations } from "./db/migrate";
 import { createHooksRouter } from "./routes/hooks";
+import { createWebSocketRoute } from "./ws/handler";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -22,6 +23,8 @@ function broadcast(topic: string, data: unknown) {
 
 const hooksRouter = createHooksRouter(broadcast);
 app.route("/api/hooks", hooksRouter);
+
+app.get("/ws", createWebSocketRoute(upgradeWebSocket));
 
 await runMigrations();
 
