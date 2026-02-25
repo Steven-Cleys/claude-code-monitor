@@ -12,8 +12,5 @@ export function createWebSocketRoute(upgradeWebSocket: UpgradeWebSocket) {
       ws.raw?.unsubscribe("sessions");
       console.log("WebSocket client disconnected");
     },
-    onMessage(_event, ws) {
-      // Reserved for future filtering
-    },
   }));
 }

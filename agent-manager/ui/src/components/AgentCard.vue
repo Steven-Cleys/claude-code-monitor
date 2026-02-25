@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Session } from "../types/events";
+import { shortId, timeSince, statusColor } from "../utils/format";
 
 defineProps<{
   session: Session;
@@ -9,30 +10,6 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: string];
 }>();
-
-function shortId(id: string) {
-  return id.slice(0, 8);
-}
-
-function timeSince(dateStr: string) {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ago`;
-}
-
-function statusColor(status: string) {
-  switch (status) {
-    case "active":
-      return "bg-green-400";
-    case "idle":
-      return "bg-yellow-400";
-    default:
-      return "bg-gray-400";
-  }
-}
 </script>
 
 <template>

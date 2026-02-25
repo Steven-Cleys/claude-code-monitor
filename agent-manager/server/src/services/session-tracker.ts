@@ -1,10 +1,9 @@
 import { sql } from "../db/connection";
-
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+import { IDLE_TIMEOUT_MS, SESSION_TRACKER_INTERVAL_MS } from "../constants";
 
 type BroadcastFn = (topic: string, data: unknown) => void;
 
-export function startSessionTracker(broadcast: BroadcastFn, intervalMs = 30_000) {
+export function startSessionTracker(broadcast: BroadcastFn, intervalMs = SESSION_TRACKER_INTERVAL_MS) {
   const timer = setInterval(async () => {
     const idleThreshold = new Date(Date.now() - IDLE_TIMEOUT_MS);
 

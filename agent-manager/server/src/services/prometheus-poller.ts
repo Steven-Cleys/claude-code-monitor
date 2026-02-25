@@ -1,4 +1,4 @@
-import { sql } from "../db/connection";
+import { PROMETHEUS_POLL_INTERVAL_MS, PROMETHEUS_TOKEN_QUERY } from "../constants";
 
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL ?? "http://localhost:9090";
 
@@ -23,12 +23,10 @@ async function queryPrometheus(promql: string): Promise<PromResult[]> {
 
 type BroadcastFn = (topic: string, data: unknown) => void;
 
-export function startPrometheusPoller(broadcast: BroadcastFn, intervalMs = 30_000) {
+export function startPrometheusPoller(broadcast: BroadcastFn, intervalMs = PROMETHEUS_POLL_INTERVAL_MS) {
   const timer = setInterval(async () => {
     try {
-      const tokenResults = await queryPrometheus(
-        'sum by (session_id, token_type) (claude_code_token_usage_tokens_total)'
-      );
+      const tokenResults = await queryPrometheus(PROMETHEUS_TOKEN_QUERY);
 
       const sessionTokens: Record<string, Record<string, number>> = {};
       for (const result of tokenResults) {

@@ -1,7 +1,6 @@
 export interface Session {
   id: string;
   model: string | null;
-  project: string | null;
   cwd: string | null;
   permission_mode: string | null;
   status: "active" | "idle" | "ended";
@@ -24,6 +23,7 @@ export interface TimelineEvent {
 
 export type WsMessage =
   | { type: "new_event"; data: TimelineEvent }
+  | { type: "session_created"; data: Session }
   | { type: "session_status_changed"; data: { id: string; status: string } }
   | { type: "session_enriched"; data: { id: string; model?: string } }
   | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } };

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import type { Session, TimelineEvent, WsMessage } from "../types/events";
 
 export function useAgents(messages: { value: WsMessage[] }) {
@@ -21,6 +21,10 @@ export function useAgents(messages: { value: WsMessage[] }) {
 
   function processMessage(msg: WsMessage) {
     switch (msg.type) {
+      case "session_created": {
+        sessions.value.set(msg.data.id, { ...msg.data, event_count: 0 });
+        break;
+      }
       case "new_event": {
         events.value.unshift(msg.data);
         const session = sessions.value.get(msg.data.session_id);
@@ -50,13 +54,14 @@ export function useAgents(messages: { value: WsMessage[] }) {
     }
   }
 
-  let lastProcessed = 0;
-  setInterval(() => {
-    while (lastProcessed < messages.value.length) {
-      processMessage(messages.value[lastProcessed]);
-      lastProcessed++;
-    }
-  }, 100);
+  watch(
+    () => messages.value.length,
+    (newLen, oldLen) => {
+      for (let i = oldLen ?? 0; i < newLen; i++) {
+        processMessage(messages.value[i]);
+      }
+    },
+  );
 
   const filteredEvents = computed(() => {
     if (!selectedSessionId.value) return events.value;

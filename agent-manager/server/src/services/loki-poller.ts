@@ -1,4 +1,5 @@
 import { sql } from "../db/connection";
+import { LOKI_POLL_INTERVAL_MS, LOKI_QUERY } from "../constants";
 
 const LOKI_URL = process.env.LOKI_URL ?? "http://localhost:3100";
 
@@ -12,9 +13,11 @@ interface LokiResponse {
   data: { result: LokiStream[] };
 }
 
+const MS_TO_NS = 1_000_000;
+
 async function queryLoki(logql: string, sinceMs = 60_000): Promise<LokiStream[]> {
-  const start = String((Date.now() - sinceMs) * 1_000_000);
-  const end = String(Date.now() * 1_000_000);
+  const start = String((Date.now() - sinceMs) * MS_TO_NS);
+  const end = String(Date.now() * MS_TO_NS);
   const params = new URLSearchParams({
     query: logql,
     start,
@@ -32,10 +35,10 @@ async function queryLoki(logql: string, sinceMs = 60_000): Promise<LokiStream[]>
 
 type BroadcastFn = (topic: string, data: unknown) => void;
 
-export function startLokiPoller(broadcast: BroadcastFn, intervalMs = 15_000) {
+export function startLokiPoller(broadcast: BroadcastFn, intervalMs = LOKI_POLL_INTERVAL_MS) {
   const timer = setInterval(async () => {
     try {
-      const streams = await queryLoki('{service_name="claude-code"} | json');
+      const streams = await queryLoki(LOKI_QUERY);
 
       for (const stream of streams) {
         const sessionId = stream.stream.session_id;

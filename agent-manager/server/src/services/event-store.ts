@@ -15,7 +15,7 @@ interface HookEvent {
 export async function upsertSession(event: HookEvent) {
   const model = typeof event.model === "string" ? event.model : null;
 
-  await sql`
+  const [row] = await sql`
     INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
     VALUES (${event.session_id}, ${event.cwd}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
@@ -24,11 +24,15 @@ export async function upsertSession(event: HookEvent) {
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
       permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
       model = COALESCE(EXCLUDED.model, sessions.model)
+    -- xmax = 0 means the row was inserted (not updated by a concurrent tx)
+    RETURNING *, (xmax = 0) AS is_new
   `;
+
+  return { session: row, isNew: row.is_new as boolean };
 }
 
 export async function storeEvent(event: HookEvent) {
-  await upsertSession(event);
+  const upsertResult = await upsertSession(event);
 
   const [row] = await sql`
     INSERT INTO events (session_id, event_type, tool_name, tool_input, tool_response, payload)
@@ -43,7 +47,7 @@ export async function storeEvent(event: HookEvent) {
     RETURNING id, session_id, event_type, tool_name, tool_input, tool_response, created_at
   `;
 
-  return row;
+  return { event: row, session: upsertResult };
 }
 
 export async function updateSessionModel(sessionId: string, model: string) {
