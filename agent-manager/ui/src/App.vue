@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
 import AgentList from "./components/AgentList.vue";
 import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
+import StatusBar from "./components/StatusBar.vue";
 import { formatCost } from "./utils/format";
 
 const { connected, messages } = useWebSocket();
@@ -25,6 +26,13 @@ const {
   toggleEventDetail,
 } = useAgents(messages);
 
+const sidebarCollapsed = ref(false);
+
+const sessionCount = computed(() => sortedSessions.value.length);
+const activeSessionCount = computed(
+  () => sortedSessions.value.filter((s) => s.status === "active").length,
+);
+
 function refresh() {
   fetchSessions();
   fetchEvents();
@@ -41,48 +49,101 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
-  <div class="h-screen flex flex-col bg-gray-950 text-gray-100">
-    <header class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-      <div class="flex items-center gap-3">
-        <h1 class="text-lg font-semibold">Agent Manager</h1>
-        <span
-          class="w-2 h-2 rounded-full"
-          :class="connected ? 'bg-green-400' : 'bg-red-400'"
-          :title="connected ? 'Connected' : 'Disconnected'"
-        />
-        <span v-if="totalCost > 0" class="text-sm text-gray-400 font-mono ml-2">
-          Total: <span class="text-gray-200 font-semibold">{{ formatCost(totalCost) }}</span>
-        </span>
+  <div class="h-screen flex flex-col bg-ink text-gray-300 font-[family-name:var(--font-mono)] scanlines noise-overlay">
+    <!-- Top command bar -->
+    <header class="relative z-10 flex items-center justify-between px-5 py-3 border-b border-ink-border bg-ink-light/80 backdrop-blur-sm">
+      <div class="flex items-center gap-4">
+        <button
+          class="flex items-center gap-2 group"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+          title="Toggle sessions panel"
+        >
+          <svg
+            class="w-4 h-4 text-ghost transition-transform duration-200"
+            :class="{ 'rotate-180': sidebarCollapsed }"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path d="M2 4h12M2 8h8M2 12h10" stroke-linecap="round" />
+          </svg>
+        </button>
+
+        <div class="flex items-center gap-2.5">
+          <div class="w-1.5 h-6 bg-amber-glow rounded-full opacity-80"></div>
+          <h1 class="font-[family-name:var(--font-display)] text-lg font-semibold text-gray-100 tracking-tight">
+            Mission Control
+          </h1>
+        </div>
+
+        <div class="flex items-center gap-2 ml-3">
+          <span
+            class="w-2 h-2 rounded-full transition-all duration-500"
+            :class="connected ? 'status-active animate-pulse-glow' : 'status-ended'"
+          />
+          <span class="text-xs tracking-wide" :class="connected ? 'text-signal-green' : 'text-ghost'">
+            {{ connected ? 'LIVE' : 'OFFLINE' }}
+          </span>
+        </div>
       </div>
-      <div class="flex items-center gap-3">
+
+      <div class="flex items-center gap-4">
+        <div v-if="totalCost > 0" class="flex items-center gap-2">
+          <span class="text-[0.65rem] uppercase tracking-widest text-ghost">Cost</span>
+          <span class="text-sm font-semibold text-amber-glow">{{ formatCost(totalCost) }}</span>
+        </div>
+
+        <div class="h-4 w-px bg-ink-border"></div>
+
         <select
           v-model="hoursFilter"
-          class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm"
+          class="bg-ink-mid border border-ink-border rounded px-2.5 py-1 text-xs text-ghost-light focus:border-amber-muted focus:outline-none transition-colors cursor-pointer"
           @change="refresh"
         >
-          <option :value="1">Last 1h</option>
-          <option :value="4">Last 4h</option>
-          <option :value="12">Last 12h</option>
-          <option :value="24">Last 24h</option>
+          <option :value="1">1h</option>
+          <option :value="4">4h</option>
+          <option :value="12">12h</option>
+          <option :value="24">24h</option>
         </select>
+
         <button
-          class="px-3 py-1 text-sm bg-gray-800 border border-gray-700 rounded hover:bg-gray-700"
+          class="px-3 py-1 text-xs border border-ink-border rounded bg-ink-mid text-ghost-light hover:border-amber-muted hover:text-amber-glow transition-all duration-200"
           @click="refresh"
         >
-          Refresh
+          REFRESH
         </button>
       </div>
     </header>
-    <main class="flex flex-1 overflow-hidden">
-      <aside class="w-72 border-r border-gray-800 p-3 overflow-y-auto shrink-0">
-        <h2 class="text-xs font-semibold uppercase text-gray-500 mb-3">Agents</h2>
-        <AgentList
-          :sessions="sortedSessions"
-          :selected-id="selectedSessionId"
-          @select="(id) => (selectedSessionId = id)"
-        />
+
+    <!-- Main content area -->
+    <main class="flex flex-1 overflow-hidden relative">
+      <!-- Sessions sidebar -->
+      <aside
+        class="border-r border-ink-border bg-ink-light sidebar-gradient overflow-y-auto custom-scrollbar shrink-0 transition-all duration-300 ease-in-out"
+        :class="sidebarCollapsed ? 'w-0 opacity-0 border-r-0' : 'w-80 opacity-100'"
+      >
+        <div class="p-4" :class="sidebarCollapsed ? 'invisible' : 'visible'">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-[0.6rem] uppercase tracking-[0.2em] text-ghost font-semibold">Sessions</span>
+              <span class="chip bg-ink-surface text-ghost-light">{{ sessionCount }}</span>
+            </div>
+            <div v-if="activeSessionCount > 0" class="flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full status-active"></span>
+              <span class="text-[0.6rem] text-signal-green">{{ activeSessionCount }} active</span>
+            </div>
+          </div>
+          <AgentList
+            :sessions="sortedSessions"
+            :selected-id="selectedSessionId"
+            @select="(id) => (selectedSessionId = id)"
+          />
+        </div>
       </aside>
-      <section class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Event stream (hero area) -->
+      <section class="flex-1 flex flex-col overflow-hidden grid-bg">
         <TimelineFilters
           :search-query="searchQuery"
           :active-event-types="activeEventTypes"
@@ -99,5 +160,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
         />
       </section>
     </main>
+
+    <!-- Bottom status bar -->
+    <StatusBar
+      :connected="connected"
+      :session-count="sessionCount"
+      :event-count="filteredEvents.length"
+      :active-count="activeSessionCount"
+    />
   </div>
 </template>
