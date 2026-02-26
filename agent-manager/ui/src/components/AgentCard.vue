@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Session } from "../types/events";
-import { shortId, timeSince, statusColor } from "../utils/format";
+import { shortId, timeSince, statusColor, formatTokenCount, formatCost } from "../utils/format";
+import { calculateCost } from "../utils/pricing";
 
 defineProps<{
   session: Session;
@@ -34,6 +35,23 @@ const emit = defineEmits<{
     </div>
     <div v-if="session.event_count" class="text-xs text-gray-500 mt-1">
       {{ session.event_count }} events
+    </div>
+    <div
+      v-if="session.tokens && (session.tokens.input || session.tokens.output || session.tokens.cache_read)"
+      class="flex items-center gap-1.5 mt-1.5 flex-wrap"
+    >
+      <span v-if="session.tokens.input" class="text-xs px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400">
+        IN {{ formatTokenCount(session.tokens.input) }}
+      </span>
+      <span v-if="session.tokens.output" class="text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400">
+        OUT {{ formatTokenCount(session.tokens.output) }}
+      </span>
+      <span v-if="session.tokens.cache_read" class="text-xs px-1.5 py-0.5 rounded bg-sky-900/40 text-sky-400">
+        CR {{ formatTokenCount(session.tokens.cache_read) }}
+      </span>
+      <span class="text-xs text-gray-300 font-semibold ml-auto">
+        {{ formatCost(calculateCost(session.tokens, session.model)) }}
+      </span>
     </div>
   </div>
 </template>

@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from "vue";
 import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
 import AgentList from "./components/AgentList.vue";
 import Timeline from "./components/Timeline.vue";
+import TimelineFilters from "./components/TimelineFilters.vue";
+import { formatCost } from "./utils/format";
 
 const { connected, messages } = useWebSocket();
 const {
@@ -12,12 +15,29 @@ const {
   hoursFilter,
   fetchSessions,
   fetchEvents,
+  totalCost,
+  searchQuery,
+  activeEventTypes,
+  knownEventTypes,
+  toggleEventType,
+  clearFilters,
+  expandedEventId,
+  toggleEventDetail,
 } = useAgents(messages);
 
 function refresh() {
   fetchSessions();
   fetchEvents();
 }
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape" && expandedEventId.value !== null) {
+    expandedEventId.value = null;
+  }
+}
+
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
@@ -30,6 +50,9 @@ function refresh() {
           :class="connected ? 'bg-green-400' : 'bg-red-400'"
           :title="connected ? 'Connected' : 'Disconnected'"
         />
+        <span v-if="totalCost > 0" class="text-sm text-gray-400 font-mono ml-2">
+          Total: <span class="text-gray-200 font-semibold">{{ formatCost(totalCost) }}</span>
+        </span>
       </div>
       <div class="flex items-center gap-3">
         <select
@@ -60,10 +83,20 @@ function refresh() {
         />
       </aside>
       <section class="flex-1 flex flex-col overflow-hidden">
-        <div class="px-4 py-2 border-b border-gray-800">
-          <h2 class="text-xs font-semibold uppercase text-gray-500">Timeline</h2>
-        </div>
-        <Timeline :events="filteredEvents" />
+        <TimelineFilters
+          :search-query="searchQuery"
+          :active-event-types="activeEventTypes"
+          :known-event-types="knownEventTypes"
+          :result-count="filteredEvents.length"
+          @update:search-query="searchQuery = $event"
+          @toggle-type="toggleEventType"
+          @clear-filters="clearFilters"
+        />
+        <Timeline
+          :events="filteredEvents"
+          :expanded-event-id="expandedEventId"
+          @toggle-detail="toggleEventDetail"
+        />
       </section>
     </main>
   </div>
