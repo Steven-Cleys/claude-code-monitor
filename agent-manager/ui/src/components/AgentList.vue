@@ -2,7 +2,7 @@
 import type { Session } from "../types/events";
 import AgentCard from "./AgentCard.vue";
 
-defineProps<{
+const props = defineProps<{
   sessions: Session[];
   selectedId: string | null;
 }>();
@@ -12,7 +12,7 @@ const emit = defineEmits<{
 }>();
 
 function handleSelect(id: string) {
-  emit("select", id);
+  emit("select", props.selectedId === id ? null : id);
 }
 </script>
 

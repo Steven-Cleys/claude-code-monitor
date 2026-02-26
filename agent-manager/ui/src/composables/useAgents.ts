@@ -10,7 +10,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
   async function fetchSessions() {
     const res = await fetch(`/api/sessions?hours=${hoursFilter.value}`);
     const data: Session[] = await res.json();
-    sessions.value = new Map(data.map((s) => [s.id, s]));
+    sessions.value = new Map(data.map((s) => [s.id, { ...s, event_count: Number(s.event_count) || 0 }]));
   }
 
   async function fetchEvents() {
@@ -32,7 +32,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
           session.last_seen = msg.data.created_at;
           session.status = "active";
           session.last_tool = msg.data.tool_name;
-          session.event_count = (session.event_count ?? 0) + 1;
+          session.event_count = Number(session.event_count ?? 0) + 1;
         }
         break;
       }
