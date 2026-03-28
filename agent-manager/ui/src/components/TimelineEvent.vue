@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TimelineEvent as TEvent } from "../types/events";
 import { formatTime, shortId, eventIcon, toolDetail } from "../utils/format";
+import { getSessionColor } from "../composables/useSessionColors";
 
 defineProps<{
   event: TEvent;
@@ -53,7 +54,7 @@ function eventAccentBorder(eventType: string): string {
     </span>
 
     <!-- Session ID -->
-    <span class="text-cyan-glow/70 shrink-0 w-16 tracking-wider">{{ shortId(event.session_id) }}</span>
+    <span class="shrink-0 w-16 tracking-wider" :style="{ color: getSessionColor(event.session_id) }">{{ shortId(event.session_id) }}</span>
 
     <!-- Tool name / event type -->
     <span class="text-gray-200 shrink-0 w-28 truncate font-medium">{{ event.tool_name ?? event.event_type }}</span>

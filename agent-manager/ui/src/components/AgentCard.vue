@@ -2,6 +2,7 @@
 import type { Session } from "../types/events";
 import { shortId, timeSince, formatTokenCount, formatCost } from "../utils/format";
 import { calculateCost } from "../utils/pricing";
+import { getSessionColor } from "../composables/useSessionColors";
 
 defineProps<{
   session: Session;
@@ -52,7 +53,7 @@ function cwdShort(cwd: string | null): string {
     <!-- Header row: status + ID + time -->
     <div class="flex items-center gap-2 mb-2">
       <span class="w-2 h-2 rounded-full shrink-0" :class="statusClass(session.status)" />
-      <span class="text-xs font-semibold tracking-wider" :class="selected ? 'text-amber-glow' : 'text-gray-200'">
+      <span class="text-xs font-semibold tracking-wider" :style="{ color: getSessionColor(session.id) }">
         {{ shortId(session.id) }}
       </span>
       <span class="text-[0.6rem] uppercase tracking-wider ml-auto" :class="{
