@@ -17,7 +17,7 @@ export async function upsertSession(event: HookEvent) {
 
   const [row] = await sql`
     INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
-    VALUES (${event.session_id}, ${event.cwd}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
+    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = NOW(),
       status = 'active',
