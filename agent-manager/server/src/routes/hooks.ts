@@ -10,8 +10,8 @@ const hookPayloadSchema = z.object({
   cwd: z.string().optional(),
   model: z.string().optional(),
   tool_name: z.string().optional(),
-  tool_input: z.record(z.unknown()).optional(),
-  tool_response: z.record(z.unknown()).optional(),
+  tool_input: z.record(z.string(), z.unknown()).optional(),
+  tool_response: z.record(z.string(), z.unknown()).optional(),
 }).passthrough();
 
 type BroadcastFn = (topic: string, data: unknown) => void;
@@ -20,7 +20,12 @@ export function createHooksRouter(broadcast: BroadcastFn) {
   const router = new Hono();
 
   router.post("/", async (c) => {
-    const body = await c.req.json();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON" }, 400);
+    }
     const result = hookPayloadSchema.safeParse(body);
 
     if (!result.success) {

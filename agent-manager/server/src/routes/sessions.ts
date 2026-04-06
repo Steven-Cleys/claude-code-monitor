@@ -6,7 +6,7 @@ import { sql } from "../db/connection";
 const router = new Hono();
 
 router.get("/", async (c) => {
-  const hours = Number(c.req.query("hours") ?? 4);
+  const hours = Math.min(Math.max(Number(c.req.query("hours")) || 4, 0), 168);
   const sessions = await getActiveSessions(hours);
 
   const enriched = await Promise.all(
@@ -21,7 +21,7 @@ router.get("/", async (c) => {
 
 router.get("/:id/events", async (c) => {
   const sessionId = c.req.param("id");
-  const limit = Number(c.req.query("limit") ?? 100);
+  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 100, 1), 1000);
   const events = await sql`
     SELECT id, event_type, tool_name, tool_input, tool_response, created_at
     FROM events
