@@ -58,8 +58,34 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
   // Index stops by agent_id for lookup
   const stopsByAgentId = new Map(stops.map((s) => [s.agent_id, s]));
 
+  // Track which PreToolUse events have been consumed to avoid reuse
+  const consumedDispatches = new Set<number>();
+
+  const MATCH_WINDOW_MS = 30_000;
+
   return starts.map((start, i) => {
-    const dispatch = dispatches[i] ?? null;
+    const startTime = new Date(start.dispatched_at).getTime();
+
+    // Find the closest PreToolUse/Agent event that:
+    // 1. Fired before this SubagentStart
+    // 2. Is within the 30-second window
+    // 3. Has not already been matched to another SubagentStart
+    let bestIndex = -1;
+    let bestDelta = Infinity;
+
+    for (let j = 0; j < dispatches.length; j++) {
+      if (consumedDispatches.has(j)) continue;
+      const dispatchTime = new Date(dispatches[j].dispatched_at).getTime();
+      const delta = startTime - dispatchTime;
+      if (delta >= 0 && delta <= MATCH_WINDOW_MS && delta < bestDelta) {
+        bestDelta = delta;
+        bestIndex = j;
+      }
+    }
+
+    const dispatch = bestIndex !== -1 ? dispatches[bestIndex] : null;
+    if (bestIndex !== -1) consumedDispatches.add(bestIndex);
+
     const stop = stopsByAgentId.get(start.agent_id) ?? null;
     const shortId = start.agent_id?.slice(-8) ?? `${i + 1}`;
     return {
