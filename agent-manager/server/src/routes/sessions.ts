@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { getActiveSessions } from "../services/session-tracker";
+import { extractSubagents } from "../services/subagent-enricher";
 import { sql } from "../db/connection";
 
 const router = new Hono();
@@ -7,7 +8,15 @@ const router = new Hono();
 router.get("/", async (c) => {
   const hours = Number(c.req.query("hours") ?? 4);
   const sessions = await getActiveSessions(hours);
-  return c.json(sessions);
+
+  const enriched = await Promise.all(
+    sessions.map(async (session) => ({
+      ...session,
+      subagents: await extractSubagents(session.id),
+    }))
+  );
+
+  return c.json(enriched);
 });
 
 router.get("/:id/events", async (c) => {
