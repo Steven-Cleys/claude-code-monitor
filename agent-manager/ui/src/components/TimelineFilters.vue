@@ -6,12 +6,14 @@ defineProps<{
   activeEventTypes: Set<string>;
   knownEventTypes: string[];
   resultCount: number;
+  subagentFilterName: string | null;
 }>();
 
 const emit = defineEmits<{
   "update:searchQuery": [value: string];
   toggleType: [type: string];
   clearFilters: [];
+  clearSubagentFilter: [];
 }>();
 
 function hasActiveFilters(searchQuery: string, activeEventTypes: Set<string>): boolean {
@@ -37,6 +39,20 @@ function hasActiveFilters(searchQuery: string, activeEventTypes: Set<string>): b
       >
         Clear filters
       </button>
+    </div>
+
+    <!-- Active subagent filter pill -->
+    <div v-if="subagentFilterName" class="flex items-center gap-2">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[0.65rem] bg-indigo-500/10 border border-indigo-500/30 text-indigo-300">
+        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+        Agent: {{ subagentFilterName }}
+        <button
+          class="ml-1 text-indigo-400/70 hover:text-indigo-300 transition-colors"
+          @click="emit('clearSubagentFilter')"
+        >
+          &times;
+        </button>
+      </span>
     </div>
 
     <!-- Search input -->
