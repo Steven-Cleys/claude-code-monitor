@@ -15,6 +15,43 @@ export function useAgents(messages: { value: WsMessage[] }) {
   // F3: Event detail expansion
   const expandedEventId = ref<number | null>(null);
 
+  // Subagent filter state
+  const activeSubagentFilter = ref<{
+    sessionId: string;
+    name: string;
+    dispatchedAt: string;
+    completedAt: string | null;
+  } | null>(null);
+
+  function filterBySubagent(sessionId: string, agentName: string) {
+    if (
+      activeSubagentFilter.value?.sessionId === sessionId &&
+      activeSubagentFilter.value?.name === agentName
+    ) {
+      activeSubagentFilter.value = null;
+      return;
+    }
+
+    const session = sessions.value.get(sessionId);
+    if (!session?.subagents) return;
+
+    const agent = session.subagents.find((a) => a.name === agentName);
+    if (!agent) return;
+
+    selectedSessionId.value = sessionId;
+
+    activeSubagentFilter.value = {
+      sessionId,
+      name: agentName,
+      dispatchedAt: agent.dispatched_at,
+      completedAt: agent.completed_at,
+    };
+  }
+
+  function clearSubagentFilter() {
+    activeSubagentFilter.value = null;
+  }
+
   async function fetchSessions() {
     const res = await fetch(`/api/sessions?hours=${hoursFilter.value}`);
     const data: Session[] = await res.json();
@@ -30,7 +67,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
   function processMessage(msg: WsMessage) {
     switch (msg.type) {
       case "session_created": {
-        sessions.value.set(msg.data.id, { ...msg.data, event_count: 0 });
+        sessions.value.set(msg.data.id, { ...msg.data, event_count: 0, subagents: [] });
         break;
       }
       case "new_event": {
@@ -41,6 +78,36 @@ export function useAgents(messages: { value: WsMessage[] }) {
           session.status = "active";
           session.last_tool = msg.data.tool_name;
           session.event_count = Number(session.event_count ?? 0) + 1;
+
+          // Real-time subagent tracking
+          if (msg.data.event_type === "PreToolUse" && msg.data.tool_name === "Agent" && msg.data.tool_input) {
+            if (!session.subagents) session.subagents = [];
+            session.subagents.push({
+              name: (msg.data.tool_input.name as string) ?? `agent-${session.subagents.length + 1}`,
+              description: (msg.data.tool_input.description as string) ?? "",
+              subagent_type: (msg.data.tool_input.subagent_type as string) ?? null,
+              agent_type: null,
+              agent_id: null,
+              status: "running",
+              dispatched_at: msg.data.created_at,
+              completed_at: null,
+              permission_mode: null,
+              last_message: null,
+              run_in_background: (msg.data.tool_input.run_in_background as boolean) ?? false,
+            });
+          }
+
+          if (msg.data.event_type === "SubagentStop" && session.subagents) {
+            const running = session.subagents.find((a) => a.status === "running");
+            if (running) {
+              running.status = "completed";
+              running.completed_at = msg.data.created_at;
+              if (msg.data.tool_input) {
+                running.agent_id = (msg.data.tool_input.agent_id as string) ?? null;
+                running.agent_type = (msg.data.tool_input.agent_type as string) ?? null;
+              }
+            }
+          }
         }
         break;
       }
@@ -86,6 +153,19 @@ export function useAgents(messages: { value: WsMessage[] }) {
     // Session filter
     if (selectedSessionId.value) {
       result = result.filter((e) => e.session_id === selectedSessionId.value);
+    }
+
+    // Subagent time-range filter
+    if (activeSubagentFilter.value) {
+      const start = new Date(activeSubagentFilter.value.dispatchedAt).getTime();
+      const end = activeSubagentFilter.value.completedAt
+        ? new Date(activeSubagentFilter.value.completedAt).getTime()
+        : Date.now();
+      result = result.filter((e) => {
+        if (e.session_id !== activeSubagentFilter.value!.sessionId) return false;
+        const t = new Date(e.created_at).getTime();
+        return t >= start && t <= end;
+      });
     }
 
     // F2: Event type filter
@@ -164,5 +244,8 @@ export function useAgents(messages: { value: WsMessage[] }) {
     clearFilters,
     expandedEventId,
     toggleEventDetail,
+    activeSubagentFilter,
+    filterBySubagent,
+    clearSubagentFilter,
   };
 }
