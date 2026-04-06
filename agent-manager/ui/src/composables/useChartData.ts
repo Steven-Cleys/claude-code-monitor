@@ -18,14 +18,14 @@ export interface ChartData {
 }
 
 const COLORS = [
-  "#f59e0b",
-  "#60a5fa",
-  "#a78bfa",
   "#22c55e",
-  "#e879f9",
+  "#10b981",
   "#34d399",
-  "#f87171",
-  "#fbbf24",
+  "#6ee7b7",
+  "#a7f3d0",
+  "#059669",
+  "#047857",
+  "#065f46",
 ];
 
 function formatDuration(ms: number): string {
