@@ -24,6 +24,9 @@ const {
   clearFilters,
   expandedEventId,
   toggleEventDetail,
+  activeSubagentFilter,
+  filterBySubagent,
+  clearSubagentFilter,
 } = useAgents(messages);
 
 const sidebarCollapsed = ref(false);
@@ -137,7 +140,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           <AgentList
             :sessions="sortedSessions"
             :selected-id="selectedSessionId"
-            @select="(id) => (selectedSessionId = id)"
+            :active-subagent-filter="activeSubagentFilter?.name ?? null"
+            @select="(id) => { selectedSessionId = id; clearSubagentFilter(); }"
+            @filter-by-agent="filterBySubagent"
           />
         </div>
       </aside>
@@ -149,9 +154,11 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           :active-event-types="activeEventTypes"
           :known-event-types="knownEventTypes"
           :result-count="filteredEvents.length"
+          :subagent-filter-name="activeSubagentFilter?.name ?? null"
           @update:search-query="searchQuery = $event"
           @toggle-type="toggleEventType"
           @clear-filters="clearFilters"
+          @clear-subagent-filter="clearSubagentFilter"
         />
         <Timeline
           :events="filteredEvents"
