@@ -39,13 +39,13 @@ export function useChartData(
   selectedSessionId: Ref<string | null>,
 ) {
   return computed<ChartData | null>(() => {
-    const session = selectedSessionId.value
-      ? sessions.value.find((s) => s.id === selectedSessionId.value)
-      : sessions.value.find((s) => s.subagents && s.subagents.length > 0);
+    // Gather subagents from all sessions (or just selected session if filtered)
+    const targetSessions = selectedSessionId.value
+      ? sessions.value.filter((s) => s.id === selectedSessionId.value)
+      : sessions.value;
 
-    if (!session?.subagents?.length) return null;
-
-    const subagents = session.subagents;
+    const subagents = targetSessions.flatMap((s) => s.subagents ?? []);
+    if (!subagents.length) return null;
 
     const starts = subagents.map((a) => new Date(a.dispatched_at).getTime());
     const ends = subagents.map((a) =>
