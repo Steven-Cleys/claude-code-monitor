@@ -1,7 +1,18 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { storeEvent } from "../services/event-store";
 import { markSessionEnded } from "../services/session-tracker";
 import { SESSION_END_EVENTS } from "../constants";
+
+const hookPayloadSchema = z.object({
+  session_id: z.string().min(1).max(256),
+  hook_event_name: z.string().min(1).max(128),
+  cwd: z.string().optional(),
+  model: z.string().optional(),
+  tool_name: z.string().optional(),
+  tool_input: z.record(z.unknown()).optional(),
+  tool_response: z.record(z.unknown()).optional(),
+}).passthrough();
 
 type BroadcastFn = (topic: string, data: unknown) => void;
 
@@ -9,11 +20,14 @@ export function createHooksRouter(broadcast: BroadcastFn) {
   const router = new Hono();
 
   router.post("/", async (c) => {
-    const payload = await c.req.json();
+    const body = await c.req.json();
+    const result = hookPayloadSchema.safeParse(body);
 
-    if (!payload.session_id || !payload.hook_event_name) {
-      return c.json({ error: "Missing session_id or hook_event_name" }, 400);
+    if (!result.success) {
+      return c.json({ error: "Invalid payload", details: result.error.flatten() }, 400);
     }
+
+    const payload = result.data;
 
     const { event, session } = await storeEvent(payload);
 

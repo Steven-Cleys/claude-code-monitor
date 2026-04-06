@@ -10,8 +10,12 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function syntaxHighlight(obj: unknown): string {
-  const json = JSON.stringify(obj, null, 2);
+  const json = escapeHtml(JSON.stringify(obj, null, 2));
   return json.replace(
     /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(true|false)|(\bnull\b)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
     (match, key, str, bool, nil, num) => {

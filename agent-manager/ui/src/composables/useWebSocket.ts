@@ -1,6 +1,8 @@
 import { ref, onUnmounted } from "vue";
 import type { WsMessage } from "../types/events";
 
+const MAX_MESSAGES = 500;
+
 export function useWebSocket() {
   const connected = ref(false);
   const messages = ref<WsMessage[]>([]);
@@ -18,6 +20,9 @@ export function useWebSocket() {
 
     ws.onmessage = (event) => {
       const msg: WsMessage = JSON.parse(event.data);
+      if (messages.value.length >= MAX_MESSAGES) {
+        messages.value.splice(0, messages.value.length - MAX_MESSAGES + 1);
+      }
       messages.value.push(msg);
     };
 
