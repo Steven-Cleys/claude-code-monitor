@@ -9,6 +9,7 @@ export interface Session {
   event_count?: number;
   last_tool?: string | null;
   tokens?: Record<string, number>;
+  subagents?: Subagent[];
 }
 
 export interface TimelineEvent {
@@ -19,6 +20,20 @@ export interface TimelineEvent {
   tool_input: Record<string, unknown> | null;
   tool_response: Record<string, unknown> | null;
   created_at: string;
+}
+
+export interface Subagent {
+  name: string;
+  description: string;
+  subagent_type: string | null;
+  agent_type: string | null;
+  agent_id: string | null;
+  status: "running" | "completed";
+  dispatched_at: string;
+  completed_at: string | null;
+  permission_mode: string | null;
+  last_message: string | null;
+  run_in_background: boolean;
 }
 
 export type WsMessage =
