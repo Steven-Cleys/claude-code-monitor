@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import type { Session } from "../types/events";
+import type { Session, Subagent } from "../types/events";
 import { shortId, timeSince, formatTokenCount, formatCost } from "../utils/format";
 import { calculateCost } from "../utils/pricing";
 import { getSessionColor } from "../composables/useSessionColors";
+import SubagentTree from "./SubagentTree.vue";
 
 defineProps<{
   session: Session;
   selected: boolean;
+  activeSubagentFilter: string | null;
 }>();
 
 const emit = defineEmits<{
   select: [id: string];
+  filterByAgent: [sessionId: string, agentName: string];
+  inspectAgent: [subagent: Subagent];
 }>();
 
 function statusClass(status: string): string {
@@ -116,5 +120,14 @@ function cwdShort(cwd: string | null): string {
     >
       <span class="text-[0.6rem] text-ghost">{{ session.event_count }} events</span>
     </div>
+
+    <!-- Subagent orchestration tree -->
+    <SubagentTree
+      v-if="session.subagents && session.subagents.length > 0"
+      :subagents="session.subagents"
+      :active-filter="selected ? activeSubagentFilter : null"
+      @filter-by-agent="(name) => emit('filterByAgent', session.id, name)"
+      @inspect-agent="(agent) => emit('inspectAgent', agent)"
+    />
   </div>
 </template>
