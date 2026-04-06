@@ -6,6 +6,7 @@ import AgentList from "./components/AgentList.vue";
 import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
 import StatusBar from "./components/StatusBar.vue";
+import SwimLaneChart from "./components/SwimLaneChart.vue";
 import { formatCost } from "./utils/format";
 
 const { connected, messages } = useWebSocket();
@@ -159,6 +160,10 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           @toggle-type="toggleEventType"
           @clear-filters="clearFilters"
           @clear-subagent-filter="clearSubagentFilter"
+        />
+        <SwimLaneChart
+          :sessions="sortedSessions"
+          :selected-session-id="selectedSessionId"
         />
         <Timeline
           :events="filteredEvents"
