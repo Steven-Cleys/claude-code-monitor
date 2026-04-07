@@ -10,6 +10,8 @@ import { startLokiPoller } from "./services/loki-poller";
 import { startPrometheusPoller } from "./services/prometheus-poller";
 import { sessionsRouter } from "./routes/sessions";
 import { eventsRouter } from "./routes/events";
+import { createTranscriptsRouter } from "./routes/transcripts";
+import { createTranscriptWebSocketRoute } from "./ws/transcript-handler";
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -33,6 +35,11 @@ app.get("/ws", createWebSocketRoute(upgradeWebSocket));
 
 app.route("/api/sessions", sessionsRouter);
 app.route("/api/events", eventsRouter);
+
+const transcriptsRouter = createTranscriptsRouter(broadcast);
+app.route("/api/transcripts", transcriptsRouter);
+
+app.get("/ws/transcript", createTranscriptWebSocketRoute(upgradeWebSocket, broadcast));
 
 await runMigrations();
 

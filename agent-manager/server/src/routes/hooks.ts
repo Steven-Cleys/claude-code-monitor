@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storeEvent } from "../services/event-store";
 import { markSessionEnded } from "../services/session-tracker";
 import { SESSION_END_EVENTS } from "../constants";
+import { stopWatching, isWatching } from "../services/transcript-watcher";
 
 const hookPayloadSchema = z.object({
   session_id: z.string().min(1).max(256),
@@ -55,6 +56,14 @@ export function createHooksRouter(broadcast: BroadcastFn) {
         type: "session_status_changed",
         data: { id: payload.session_id, status: "ended" },
       });
+    }
+
+    // Stop transcript watcher when subagent completes
+    if (payload.hook_event_name === "SubagentStop") {
+      const agentId = (payload as Record<string, unknown>).agent_id as string | undefined;
+      if (agentId && isWatching(agentId)) {
+        stopWatching(agentId, broadcast);
+      }
     }
 
     return c.json({ id: event.id }, 201);
