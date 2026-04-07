@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
 import AgentList from "./components/AgentList.vue";
+import TranscriptModal from "./components/transcript/TranscriptModal.vue";
+import type { Subagent } from "./types/events";
 import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -31,6 +33,12 @@ const {
 } = useAgents(messages);
 
 const sidebarCollapsed = ref(false);
+const inspectedSubagent = ref<Subagent | null>(null);
+
+function handleInspectAgent(subagent: Subagent) {
+  if (!subagent.agent_id) return;
+  inspectedSubagent.value = subagent;
+}
 
 const sessionCount = computed(() => sortedSessions.value.length);
 const activeSessionCount = computed(
@@ -43,8 +51,12 @@ function refresh() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === "Escape" && expandedEventId.value !== null) {
-    expandedEventId.value = null;
+  if (e.key === "Escape") {
+    if (inspectedSubagent.value) {
+      inspectedSubagent.value = null;
+    } else if (expandedEventId.value !== null) {
+      expandedEventId.value = null;
+    }
   }
 }
 
@@ -144,6 +156,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             :active-subagent-filter="activeSubagentFilter?.name ?? null"
             @select="(id) => { selectedSessionId = id; clearSubagentFilter(); }"
             @filter-by-agent="filterBySubagent"
+            @inspect-agent="handleInspectAgent"
           />
         </div>
       </aside>
@@ -179,6 +192,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
       :session-count="sessionCount"
       :event-count="filteredEvents.length"
       :active-count="activeSessionCount"
+    />
+
+    <!-- Transcript Modal -->
+    <TranscriptModal
+      v-if="inspectedSubagent"
+      :subagent="inspectedSubagent"
+      @close="inspectedSubagent = null"
     />
   </div>
 </template>

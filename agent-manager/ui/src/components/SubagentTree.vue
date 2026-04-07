@@ -65,11 +65,26 @@ function statusLabel(status: string): string {
         <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="statusDotClass(agent.status)" />
         <span class="text-[0.65rem] font-mono text-indigo-300 truncate">{{ agent.name }}</span>
         <span
-          class="text-[0.5rem] uppercase tracking-wider ml-auto shrink-0"
-          :class="agent.status === 'running' ? 'text-signal-green' : 'text-ghost/50'"
+          v-if="agent.metadata?.model"
+          class="text-[0.5rem] px-1 rounded bg-indigo-900/30 text-purple-300 border border-indigo-700/30 shrink-0"
+        >
+          {{ agent.metadata.model?.includes('opus') ? 'opus' : agent.metadata.model?.includes('sonnet') ? 'sonnet' : 'haiku' }}
+        </span>
+        <span
+          class="text-[0.55rem] uppercase tracking-wider ml-auto shrink-0"
+          :class="agent.status === 'running' ? 'text-signal-green' : 'text-ghost-light'"
         >
           {{ statusLabel(agent.status) }}
         </span>
+        <button
+          class="shrink-0 p-1 rounded text-indigo-400/70 hover:text-purple-300 hover:bg-purple-500/15 transition-colors"
+          title="View transcript"
+          @click.stop="emit('inspectAgent', agent)"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 3h12M2 6h10M2 9h8M2 12h6" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
     </div>
   </div>
