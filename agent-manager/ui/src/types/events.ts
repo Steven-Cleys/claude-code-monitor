@@ -34,6 +34,48 @@ export interface Subagent {
   permission_mode: string | null;
   last_message: string | null;
   run_in_background: boolean;
+  metadata?: SubagentMetadata | null;
+}
+
+export interface SubagentMetadata {
+  model: string | null;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  tool_call_count: number;
+}
+
+export interface TranscriptLine {
+  type: "user" | "assistant" | "progress";
+  message?: {
+    role?: "user" | "assistant";
+    content?: string | ContentBlock[];
+    model?: string;
+    id?: string;
+    stop_reason?: string;
+    usage?: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
+    };
+  };
+  timestamp: string;
+  agentId?: string;
+  slug?: string;
+}
+
+export interface ContentBlock {
+  type: "text" | "tool_use" | "tool_result" | "thinking";
+  text?: string;
+  thinking?: string;
+  name?: string;
+  id?: string;
+  input?: unknown;
+  content?: string;
+  tool_use_id?: string;
+  is_error?: boolean;
 }
 
 export type WsMessage =
@@ -41,4 +83,6 @@ export type WsMessage =
   | { type: "session_created"; data: Session }
   | { type: "session_status_changed"; data: { id: string; status: string } }
   | { type: "session_enriched"; data: { id: string; model?: string } }
-  | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } };
+  | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } }
+  | { type: "transcript_line"; agentId: string; data: TranscriptLine }
+  | { type: "transcript_complete"; agentId: string };
