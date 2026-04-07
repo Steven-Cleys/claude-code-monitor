@@ -61,9 +61,16 @@ function statusLabel(status: string): string {
             : 'hover:bg-ink-surface/60 border border-transparent'
         "
         @click.stop="emit('filterByAgent', agent.name)"
+        @dblclick.stop="emit('inspectAgent', agent)"
       >
         <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="statusDotClass(agent.status)" />
         <span class="text-[0.65rem] font-mono text-indigo-300 truncate">{{ agent.name }}</span>
+        <span
+          v-if="agent.metadata?.model"
+          class="text-[0.5rem] px-1 rounded bg-indigo-900/30 text-purple-300 border border-indigo-700/30 shrink-0"
+        >
+          {{ agent.metadata.model?.includes('opus') ? 'opus' : agent.metadata.model?.includes('sonnet') ? 'sonnet' : 'haiku' }}
+        </span>
         <span
           class="text-[0.5rem] uppercase tracking-wider ml-auto shrink-0"
           :class="agent.status === 'running' ? 'text-signal-green' : 'text-ghost/50'"
