@@ -61,7 +61,6 @@ function statusLabel(status: string): string {
             : 'hover:bg-ink-surface/60 border border-transparent'
         "
         @click.stop="emit('filterByAgent', agent.name)"
-        @dblclick.stop="emit('inspectAgent', agent)"
       >
         <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="statusDotClass(agent.status)" />
         <span class="text-[0.65rem] font-mono text-indigo-300 truncate">{{ agent.name }}</span>
@@ -77,6 +76,15 @@ function statusLabel(status: string): string {
         >
           {{ statusLabel(agent.status) }}
         </span>
+        <button
+          class="shrink-0 p-0.5 rounded text-ghost/40 hover:text-purple-300 hover:bg-purple-500/10 transition-colors"
+          title="View transcript"
+          @click.stop="emit('inspectAgent', agent)"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 3h12M2 6h10M2 9h8M2 12h6" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
     </div>
   </div>
