@@ -12,6 +12,14 @@ interface Subagent {
   permission_mode: string | null;
   last_message: string | null;
   run_in_background: boolean;
+  metadata?: {
+    model: string | null;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    tool_call_count: number;
+  } | null;
 }
 
 export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
@@ -55,6 +63,14 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
     ORDER BY created_at ASC
   `;
 
+  const metadataRows = await sql`
+    SELECT agent_id, model, total_input_tokens, total_output_tokens,
+           cache_read_tokens, cache_creation_tokens, tool_call_count
+    FROM subagent_metadata
+    WHERE session_id = ${sessionId}
+  `;
+  const metadataByAgentId = new Map(metadataRows.map((m) => [m.agent_id, m]));
+
   // Index stops by agent_id for lookup
   const stopsByAgentId = new Map(stops.map((s) => [s.agent_id, s]));
 
@@ -87,6 +103,7 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
     if (bestIndex !== -1) consumedDispatches.add(bestIndex);
 
     const stop = stopsByAgentId.get(start.agent_id) ?? null;
+    const meta = start.agent_id ? metadataByAgentId.get(start.agent_id) ?? null : null;
     const shortId = start.agent_id?.slice(-8) ?? `${i + 1}`;
     return {
       name: dispatch?.name ?? shortId,
@@ -100,6 +117,14 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
       permission_mode: stop?.permission_mode ?? null,
       last_message: stop?.last_message ?? null,
       run_in_background: dispatch?.run_in_background ?? false,
+      metadata: meta ? {
+        model: meta.model,
+        total_input_tokens: Number(meta.total_input_tokens),
+        total_output_tokens: Number(meta.total_output_tokens),
+        cache_read_tokens: Number(meta.cache_read_tokens),
+        cache_creation_tokens: Number(meta.cache_creation_tokens),
+        tool_call_count: Number(meta.tool_call_count),
+      } : null,
     };
   });
 }
