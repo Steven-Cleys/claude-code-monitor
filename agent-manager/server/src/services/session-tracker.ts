@@ -28,7 +28,7 @@ export function startSessionTracker(broadcast: BroadcastFn, intervalMs = SESSION
 
 export async function markSessionEnded(sessionId: string) {
   await sql`
-    UPDATE sessions SET status = 'ended', last_seen = NOW()
+    UPDATE sessions SET status = 'ended'
     WHERE id = ${sessionId}
   `;
 }

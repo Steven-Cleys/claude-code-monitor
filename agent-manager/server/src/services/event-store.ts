@@ -14,12 +14,15 @@ interface HookEvent {
 
 export async function upsertSession(event: HookEvent) {
   const model = typeof event.model === "string" ? event.model : null;
+  // SessionEnd is a deferred cleanup event that can fire hours after the session
+  // actually stopped — don't let it bump last_seen or it pollutes time-based filters.
+  const isCleanupEvent = event.hook_event_name === "SessionEnd";
 
   const [row] = await sql`
     INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
     VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
-      last_seen = NOW(),
+      last_seen = ${isCleanupEvent ? sql`sessions.last_seen` : sql`NOW()`},
       status = 'active',
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
       permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
