@@ -8,6 +8,7 @@ interface WatcherEntry {
   offset: number;
   filePath: string;
   debounceTimer: ReturnType<typeof setTimeout> | null;
+  safetyTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const activeWatchers = new Map<string, WatcherEntry>();
@@ -43,10 +44,9 @@ export function startWatching(agentId: string, broadcast: BroadcastFn): boolean 
     entry.debounceTimer = setTimeout(() => processNewLines(agentId, broadcast), DEBOUNCE_MS);
   });
 
-  activeWatchers.set(agentId, { watcher, offset, filePath, debounceTimer: null });
-
-  // Safety net: auto-stop after 1 hour
-  setTimeout(() => stopWatching(agentId, broadcast), MAX_WATCH_DURATION_MS);
+  const entry: WatcherEntry = { watcher, offset, filePath, debounceTimer: null, safetyTimer: null };
+  entry.safetyTimer = setTimeout(() => stopWatching(agentId, broadcast), MAX_WATCH_DURATION_MS);
+  activeWatchers.set(agentId, entry);
 
   return true;
 }
@@ -64,9 +64,20 @@ async function processNewLines(agentId: string, broadcast: BroadcastFn) {
 
   if (size <= entry.offset) return;
 
-  const file = Bun.file(entry.filePath);
-  const newContent = await file.slice(entry.offset, size).text();
+  // Reserve the slice range BEFORE awaiting so a second debounce fire that
+  // lands while we're reading doesn't see the same offset and broadcast
+  // the same lines twice.
+  const sliceStart = entry.offset;
   entry.offset = size;
+
+  let newContent: string;
+  try {
+    newContent = await Bun.file(entry.filePath).slice(sliceStart, size).text();
+  } catch (err) {
+    entry.offset = sliceStart; // restore so the next fire can retry the range
+    console.error(`transcript-watcher: failed to read ${entry.filePath}:`, err);
+    return;
+  }
 
   const lines = newContent.split("\n");
   for (const line of lines) {
@@ -86,6 +97,7 @@ export function stopWatching(agentId: string, broadcast: BroadcastFn) {
   if (!entry) return;
 
   if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+  if (entry.safetyTimer) clearTimeout(entry.safetyTimer);
   entry.watcher.close();
   activeWatchers.delete(agentId);
 

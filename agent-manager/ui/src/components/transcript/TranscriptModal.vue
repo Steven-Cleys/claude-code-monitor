@@ -13,6 +13,10 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+// Guard against a null agent_id slipping through from a stale `inspectedSubagent`
+// ref. The parent already guards handleInspectAgent, but this is belt and
+// suspenders — if somehow the modal mounts without an id, close it and
+// short-circuit into an empty-state.
 const {
   filteredMessages,
   metadata,
@@ -26,7 +30,11 @@ const {
   messageCount,
   toolResults,
   jumpToLatest,
-} = useTranscript(props.subagent.agent_id!, props.subagent.status);
+} = useTranscript(props.subagent.agent_id ?? "", props.subagent.status);
+
+onMounted(() => {
+  if (!props.subagent.agent_id) emit("close");
+});
 
 const messageListRef = ref<InstanceType<typeof TranscriptMessageList> | null>(null);
 

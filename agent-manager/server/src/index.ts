@@ -22,9 +22,13 @@ app.use("/api/*", cors());
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-let server: ReturnType<typeof Bun.serve>;
+let server: ReturnType<typeof Bun.serve> | undefined;
 
 function broadcast(topic: string, data: unknown) {
+  // Pre-startup broadcasts (from pollers or import-time code) are silently
+  // dropped — `server` is assigned in Bun.serve() below, and any broadcast
+  // fired before that would otherwise crash with "publish of undefined".
+  if (!server) return;
   server.publish(topic, JSON.stringify(data));
 }
 

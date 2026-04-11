@@ -23,7 +23,9 @@ export async function upsertSession(event: HookEvent) {
     VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = ${isCleanupEvent ? sql`sessions.last_seen` : sql`NOW()`},
-      status = 'active',
+      -- Never resurrect an 'ended' session: late replays (e.g. a deferred
+      -- SubagentStop) used to flip status back to 'active' here.
+      status = CASE WHEN sessions.status = 'ended' THEN 'ended' ELSE 'active' END,
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
       permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
       model = COALESCE(EXCLUDED.model, sessions.model)
@@ -53,8 +55,3 @@ export async function storeEvent(event: HookEvent) {
   return { event: row, session: upsertResult };
 }
 
-export async function updateSessionModel(sessionId: string, model: string) {
-  await sql`
-    UPDATE sessions SET model = ${model} WHERE id = ${sessionId}
-  `;
-}

@@ -39,7 +39,10 @@ watch(
 );
 
 onMounted(() => {
-  nextTick(scrollToBottom);
+  // Only auto-scroll live transcripts (where isPinnedToBottom starts true).
+  // Completed transcripts open scrolled to the top so the user sees the
+  // conversation from the start.
+  if (props.isPinnedToBottom) nextTick(scrollToBottom);
 });
 
 defineExpose({ scrollToBottom });
@@ -53,7 +56,7 @@ defineExpose({ scrollToBottom });
   >
     <TranscriptMessage
       v-for="(msg, idx) in messages"
-      :key="idx"
+      :key="msg.uuid ?? msg.message?.id ?? `${msg.timestamp}-${idx}`"
       :msg="msg"
       :tool-results="toolResults"
       :show-thinking="showThinking"

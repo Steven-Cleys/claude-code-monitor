@@ -7,7 +7,7 @@ const props = defineProps<{
   result?: { content: string; is_error: boolean } | null;
 }>();
 
-const expanded = ref(false);
+const expanded = ref(true);
 const outputExpanded = ref(false);
 
 const MAX_OUTPUT_LINES = 20;
@@ -41,8 +41,10 @@ const isResultTruncated = computed(() => resultLines.value.length > MAX_OUTPUT_L
 
 <template>
   <div class="border-l-[3px] border-amber-500 bg-amber-950/15 rounded-r-md">
-    <div
-      class="flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-amber-900/10 transition-colors"
+    <button
+      type="button"
+      class="w-full flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-amber-900/10 transition-colors text-left"
+      :aria-expanded="expanded"
       @click="expanded = !expanded"
     >
       <div class="flex items-center gap-1.5 min-w-0">
@@ -57,7 +59,7 @@ const isResultTruncated = computed(() => resultLines.value.length > MAX_OUTPUT_L
         <span class="text-[0.7rem] text-amber-300 font-mono">{{ block.name }}</span>
         <span class="text-[0.6rem] text-ghost truncate">{{ summary }}</span>
       </div>
-    </div>
+    </button>
 
     <div v-if="expanded" class="px-3 pb-2">
       <div class="mt-1 p-2 bg-ink/60 rounded border border-ink-border text-[0.65rem]">

@@ -38,7 +38,9 @@ export function extractMetadata(
   for (const msg of messages) {
     if (!msg.message) continue;
 
-    if (msg.message.model && !model) {
+    // Record the LAST model seen — if a subagent switches models mid-run,
+    // the final turn reflects the model that actually finished the work.
+    if (msg.message.model) {
       model = msg.message.model;
     }
 
@@ -69,10 +71,21 @@ export function extractMetadata(
 }
 
 export function resolveTranscriptPath(agentId: string, sessionId: string, cwd: string): string {
-  const projectHash = cwd.replace(/\//g, "-");
+  // Strip the leading slash before replacing separators — Claude Code's
+  // on-disk project dir uses `Users-x-...`, not `-Users-x-...`.
+  const projectHash = cwd.replace(/^\//, "").replace(/\//g, "-");
   return `${CLAUDE_PROJECTS_DIR}/${projectHash}/${sessionId}/subagents/agent-${agentId}.jsonl`;
 }
 
-export function hostPathToContainerPath(hostPath: string): string {
-  return hostPath.replace(/^.*\.claude\/projects\//, `${CLAUDE_PROJECTS_DIR}/`);
+// Converts a host path like `/home/user/.claude/projects/<hash>/<id>/...`
+// into the container-visible path under CLAUDE_PROJECTS_DIR. Returns null
+// when the input doesn't live under a `.claude/projects/` directory — the
+// previous silent pass-through produced a garbage path that readTranscriptFile
+// then couldn't open, and the failure was invisible.
+export function hostPathToContainerPath(hostPath: string): string | null {
+  const converted = hostPath.replace(/^.*\.claude\/projects\//, `${CLAUDE_PROJECTS_DIR}/`);
+  if (converted === hostPath && !hostPath.startsWith(`${CLAUDE_PROJECTS_DIR}/`)) {
+    return null;
+  }
+  return converted;
 }

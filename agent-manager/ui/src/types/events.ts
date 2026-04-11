@@ -20,6 +20,10 @@ export interface TimelineEvent {
   tool_input: Record<string, unknown> | null;
   tool_response: Record<string, unknown> | null;
   created_at: string;
+  // Forwarded from the server broadcast on SubagentStart/SubagentStop so the
+  // UI can wire a subagent row to its real agent_id (it is NOT in tool_input
+  // for those lifecycle events).
+  agent_id?: string;
 }
 
 export interface Subagent {
@@ -81,8 +85,9 @@ export interface ContentBlock {
 export type WsMessage =
   | { type: "new_event"; data: TimelineEvent }
   | { type: "session_created"; data: Session }
-  | { type: "session_status_changed"; data: { id: string; status: string } }
+  | { type: "session_status_changed"; data: { id: string; status: Session["status"]; last_seen?: string } }
   | { type: "session_enriched"; data: { id: string; model?: string } }
   | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } }
+  | { type: "subagent_metadata_updated"; data: { session_id: string; agent_id: string; metadata: SubagentMetadata } }
   | { type: "transcript_line"; agentId: string; data: TranscriptLine }
   | { type: "transcript_complete"; agentId: string };

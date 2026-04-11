@@ -114,6 +114,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
         <select
           v-model="hoursFilter"
+          aria-label="Time range filter"
           class="bg-ink-mid border border-ink-border rounded px-2.5 py-1 text-xs text-ghost-light focus:border-amber-muted focus:outline-none transition-colors cursor-pointer"
           @change="refresh"
         >
@@ -174,15 +175,25 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           @clear-filters="clearFilters"
           @clear-subagent-filter="clearSubagentFilter"
         />
-        <SwimLaneChart
-          :sessions="sortedSessions"
-          :selected-session-id="selectedSessionId"
-        />
-        <Timeline
-          :events="filteredEvents"
-          :expanded-event-id="expandedEventId"
-          @toggle-detail="toggleEventDetail"
-        />
+        <!--
+          Cap the swim lane to 18rem so a session with many subagents can't
+          starve the timeline of vertical space (it used to crush Timeline
+          to ~3 visible rows). Timeline gets `min-h-0 flex-1` so it actually
+          claims the remaining height inside the flex column.
+        -->
+        <div class="shrink-0 max-h-72 overflow-y-auto custom-scrollbar">
+          <SwimLaneChart
+            :sessions="sortedSessions"
+            :selected-session-id="selectedSessionId"
+          />
+        </div>
+        <div class="flex-1 min-h-0">
+          <Timeline
+            :events="filteredEvents"
+            :expanded-event-id="expandedEventId"
+            @toggle-detail="toggleEventDetail"
+          />
+        </div>
       </section>
     </main>
 

@@ -13,8 +13,9 @@ export function useTranscript(agentId: string, status: "running" | "completed") 
   const showTools = ref(true);
   const showProgress = ref(false);
 
-  // Scroll state
-  const isPinnedToBottom = ref(true);
+  // Scroll state — live transcripts follow new messages; completed ones
+  // open at the top so the user sees the full conversation from the start.
+  const isPinnedToBottom = ref(status === "running");
 
   // WebSocket for live updates
   let ws: WebSocket | null = null;

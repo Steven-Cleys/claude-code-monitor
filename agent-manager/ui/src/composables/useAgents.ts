@@ -1,5 +1,5 @@
 import { ref, computed, watch, onMounted } from "vue";
-import type { Session, TimelineEvent, WsMessage } from "../types/events";
+import type { Session, SubagentMetadata, TimelineEvent, WsMessage } from "../types/events";
 import { calculateCost } from "../utils/pricing";
 
 export function useAgents(messages: { value: WsMessage[] }) {
@@ -7,6 +7,13 @@ export function useAgents(messages: { value: WsMessage[] }) {
   const events = ref<TimelineEvent[]>([]);
   const selectedSessionId = ref<string | null>(null);
   const hoursFilter = ref(4);
+
+  // Holds subagent metadata that arrived via WS before the corresponding
+  // subagent was added to UI state (a rare but real race between the
+  // `new_event` SubagentStop broadcast and the follow-up
+  // `subagent_metadata_updated` broadcast that the server fires async
+  // from persistSubagentMetadata). Keyed by agent_id.
+  const pendingMetadata = new Map<string, SubagentMetadata>();
 
   // F2: Search & filter state
   const searchQuery = ref("");
@@ -102,9 +109,18 @@ export function useAgents(messages: { value: WsMessage[] }) {
             if (running) {
               running.status = "completed";
               running.completed_at = msg.data.created_at;
-              if (msg.data.tool_input) {
-                running.agent_id = (msg.data.tool_input.agent_id as string) ?? null;
-                running.agent_type = (msg.data.tool_input.agent_type as string) ?? null;
+              // agent_id is forwarded at the top-level of the broadcast for
+              // SubagentStart/SubagentStop (NOT inside tool_input, which is
+              // null for lifecycle events).
+              if (msg.data.agent_id) {
+                running.agent_id = msg.data.agent_id;
+                // If metadata arrived before the subagent had its real id,
+                // apply it now.
+                const pending = pendingMetadata.get(msg.data.agent_id);
+                if (pending) {
+                  running.metadata = pending;
+                  pendingMetadata.delete(msg.data.agent_id);
+                }
               }
             }
           }
@@ -113,7 +129,10 @@ export function useAgents(messages: { value: WsMessage[] }) {
       }
       case "session_status_changed": {
         const session = sessions.value.get(msg.data.id);
-        if (session) session.status = msg.data.status as Session["status"];
+        if (session) {
+          session.status = msg.data.status;
+          if (msg.data.last_seen) session.last_seen = msg.data.last_seen;
+        }
         break;
       }
       case "session_enriched": {
@@ -124,6 +143,18 @@ export function useAgents(messages: { value: WsMessage[] }) {
       case "session_metrics": {
         const session = sessions.value.get(msg.data.id);
         if (session) session.tokens = msg.data.tokens;
+        break;
+      }
+      case "subagent_metadata_updated": {
+        const session = sessions.value.get(msg.data.session_id);
+        const subagent = session?.subagents?.find((a) => a.agent_id === msg.data.agent_id);
+        if (subagent) {
+          subagent.metadata = msg.data.metadata;
+        } else {
+          // Subagent may not be in UI state yet — stash the metadata and
+          // apply it when SubagentStop later sets agent_id.
+          pendingMetadata.set(msg.data.agent_id, msg.data.metadata);
+        }
         break;
       }
     }
@@ -209,6 +240,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
   function clearFilters() {
     searchQuery.value = "";
     activeEventTypes.value = new Set();
+    activeSubagentFilter.value = null;
   }
 
   // F3: Toggle event detail panel
