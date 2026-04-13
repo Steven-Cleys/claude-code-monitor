@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import type { TimelineEvent, WsMessage } from "../types/events";
 import { getToolVisual, type ToolVisual } from "../utils/tool-config";
 
@@ -30,7 +30,6 @@ export function useToolTimeline(
   _messages: Ref<WsMessage[]>,
   selectedSessionId: Ref<string | null>,
 ) {
-  const toolCounts = ref<Map<string, number>>(new Map());
   const activeToolFilters = ref<Set<string>>(new Set());
   const showCounts = ref(false);
 
@@ -40,12 +39,11 @@ export function useToolTimeline(
       .slice(0, MAX_NODES)
       .reverse();
 
-    const counts = new Map<string, number>();
+    const runningCounts = new Map<string, number>();
     return preToolEvents.map((e) => {
       const toolName = e.tool_name!;
-      const count = (counts.get(toolName) ?? 0) + 1;
-      counts.set(toolName, count);
-      toolCounts.value = new Map(counts);
+      const count = (runningCounts.get(toolName) ?? 0) + 1;
+      runningCounts.set(toolName, count);
       return {
         eventId: e.id,
         toolName,
@@ -56,6 +54,14 @@ export function useToolTimeline(
         detail: extractDetail(e.tool_input),
       };
     });
+  });
+
+  const toolCounts = computed<Map<string, number>>(() => {
+    const counts = new Map<string, number>();
+    for (const node of allNodes.value) {
+      counts.set(node.toolName, (counts.get(node.toolName) ?? 0) + 1);
+    }
+    return counts;
   });
 
   const filteredNodes = computed<ToolTimelineNode[]>(() => {
