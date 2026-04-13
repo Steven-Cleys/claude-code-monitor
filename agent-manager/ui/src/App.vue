@@ -15,6 +15,7 @@ import { formatCost } from "./utils/format";
 const { connected, messages } = useWebSocket();
 const {
   sortedSessions,
+  events,
   filteredEvents,
   selectedSessionId,
   hoursFilter,
@@ -187,9 +188,10 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           claims the remaining height inside the flex column.
         -->
         <ToolTimeline
-          :events="filteredEvents"
+          :events="events"
           :messages="messages"
           :selected-session-id="selectedSessionId"
+          :hours-filter="hoursFilter"
           @scroll-to-event="handleScrollToEvent"
         />
         <div class="shrink-0 max-h-72 overflow-y-auto custom-scrollbar">

@@ -29,13 +29,15 @@ export function useToolTimeline(
   events: Ref<TimelineEvent[]>,
   _messages: Ref<WsMessage[]>,
   selectedSessionId: Ref<string | null>,
+  hoursFilter: Ref<number>,
 ) {
   const activeToolFilters = ref<Set<string>>(new Set());
   const showCounts = ref(false);
 
   const allNodes = computed<ToolTimelineNode[]>(() => {
+    const cutoff = new Date(Date.now() - hoursFilter.value * 60 * 60 * 1000).getTime();
     const preToolEvents = events.value
-      .filter((e) => e.event_type === "PreToolUse" && e.tool_name != null)
+      .filter((e) => e.event_type === "PreToolUse" && e.tool_name != null && new Date(e.created_at).getTime() >= cutoff)
       .slice(0, MAX_NODES)
       .reverse();
 

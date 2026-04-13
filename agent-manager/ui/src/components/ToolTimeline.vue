@@ -10,6 +10,7 @@ const props = defineProps<{
   events: TimelineEvent[];
   messages: WsMessage[];
   selectedSessionId: string | null;
+  hoursFilter: number;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 const eventsRef = computed(() => props.events);
 const messagesRef = computed(() => props.messages);
 const sessionRef = computed(() => props.selectedSessionId);
+const hoursFilterRef = computed(() => props.hoursFilter);
 
 const {
   filteredNodes,
@@ -29,7 +31,7 @@ const {
   toggleToolFilter,
   clearToolFilters,
   toggleCounts,
-} = useToolTimeline(eventsRef, messagesRef, sessionRef);
+} = useToolTimeline(eventsRef, messagesRef, sessionRef, hoursFilterRef);
 
 // Scrolling
 const scrollContainer = ref<HTMLElement | null>(null);
