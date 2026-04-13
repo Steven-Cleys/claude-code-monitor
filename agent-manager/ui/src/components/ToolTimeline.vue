@@ -157,7 +157,7 @@ function nodeColor(node: ToolTimelineNode): string {
         }"
         @click="toggleToolFilter(toolName)"
       >
-        {{ toolName }}
+        <span v-if="getToolVisual(toolName).emoji" class="mr-0.5">{{ getToolVisual(toolName).emoji }}</span>{{ toolName }}
         <span v-if="toolCounts.get(toolName)" class="ml-0.5 opacity-60">
           {{ toolCounts.get(toolName) }}
         </span>
