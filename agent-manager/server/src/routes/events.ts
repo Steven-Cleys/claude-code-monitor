@@ -5,7 +5,7 @@ const router = new Hono();
 
 router.get("/", async (c) => {
   const sinceParam = c.req.query("since");
-  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 100, 1), 1000);
+  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 100, 1), 2000);
   const since = sinceParam
     ? new Date(sinceParam)
     : new Date(Date.now() - 4 * 60 * 60 * 1000);
