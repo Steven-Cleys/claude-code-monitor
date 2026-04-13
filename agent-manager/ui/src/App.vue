@@ -9,6 +9,7 @@ import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
 import StatusBar from "./components/StatusBar.vue";
 import SwimLaneChart from "./components/SwimLaneChart.vue";
+import ToolTimeline from "./components/ToolTimeline.vue";
 import { formatCost } from "./utils/format";
 
 const { connected, messages } = useWebSocket();
@@ -58,6 +59,10 @@ function onKeydown(e: KeyboardEvent) {
       expandedEventId.value = null;
     }
   }
+}
+
+function handleScrollToEvent(eventId: number) {
+  expandedEventId.value = eventId;
 }
 
 onMounted(() => window.addEventListener("keydown", onKeydown));
@@ -181,6 +186,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           to ~3 visible rows). Timeline gets `min-h-0 flex-1` so it actually
           claims the remaining height inside the flex column.
         -->
+        <ToolTimeline
+          :events="filteredEvents"
+          :messages="messages"
+          :selected-session-id="selectedSessionId"
+          @scroll-to-event="handleScrollToEvent"
+        />
         <div class="shrink-0 max-h-72 overflow-y-auto custom-scrollbar">
           <SwimLaneChart
             :sessions="sortedSessions"
