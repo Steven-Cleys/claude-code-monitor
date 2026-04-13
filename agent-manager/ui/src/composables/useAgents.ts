@@ -67,7 +67,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
 
   async function fetchEvents() {
     const since = new Date(Date.now() - hoursFilter.value * 60 * 60 * 1000).toISOString();
-    const res = await fetch(`/api/events?since=${since}&limit=500`);
+    const res = await fetch(`/api/events?since=${since}&limit=2000`);
     events.value = await res.json();
   }
 
