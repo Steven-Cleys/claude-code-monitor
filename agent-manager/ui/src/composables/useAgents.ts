@@ -74,7 +74,13 @@ export function useAgents(messages: { value: WsMessage[] }) {
   function processMessage(msg: WsMessage) {
     switch (msg.type) {
       case "session_created": {
-        sessions.value.set(msg.data.id, { ...msg.data, event_count: 0, subagents: [] });
+        sessions.value.set(msg.data.id, {
+          ...msg.data,
+          event_count: 0,
+          subagents: [],
+          needs_attention: msg.data.needs_attention ?? false,
+          attention_since: msg.data.attention_since ?? null,
+        });
         break;
       }
       case "new_event": {
@@ -145,6 +151,14 @@ export function useAgents(messages: { value: WsMessage[] }) {
         if (session) session.tokens = msg.data.tokens;
         break;
       }
+      case "session_attention_changed": {
+        const session = sessions.value.get(msg.data.id);
+        if (session) {
+          session.needs_attention = msg.data.needs_attention;
+          session.attention_since = msg.data.attention_since;
+        }
+        break;
+      }
       case "subagent_metadata_updated": {
         const session = sessions.value.get(msg.data.session_id);
         const subagent = session?.subagents?.find((a) => a.agent_id === msg.data.agent_id);
@@ -176,6 +190,14 @@ export function useAgents(messages: { value: WsMessage[] }) {
       sum += calculateCost(s.tokens, s.model);
     }
     return sum;
+  });
+
+  const attentionCount = computed(() => {
+    let count = 0;
+    for (const s of sessions.value.values()) {
+      if (s.needs_attention) count += 1;
+    }
+    return count;
   });
 
   const filteredEvents = computed(() => {
@@ -249,9 +271,18 @@ export function useAgents(messages: { value: WsMessage[] }) {
   }
 
   const sortedSessions = computed(() => {
-    return Array.from(sessions.value.values()).sort(
-      (a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime(),
-    );
+    return Array.from(sessions.value.values()).sort((a, b) => {
+      // Attention-needed sessions float to the top, most-recently-flagged first.
+      if (a.needs_attention !== b.needs_attention) {
+        return a.needs_attention ? -1 : 1;
+      }
+      if (a.needs_attention && b.needs_attention) {
+        const at = a.attention_since ? new Date(a.attention_since).getTime() : 0;
+        const bt = b.attention_since ? new Date(b.attention_since).getTime() : 0;
+        if (at !== bt) return bt - at;
+      }
+      return new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime();
+    });
   });
 
   onMounted(() => {
@@ -269,6 +300,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
     fetchSessions,
     fetchEvents,
     totalCost,
+    attentionCount,
     searchQuery,
     activeEventTypes,
     knownEventTypes,
