@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
 import AgentList from "./components/AgentList.vue";
@@ -51,6 +51,84 @@ function handleInspectAgent(subagent: Subagent) {
 function handleInspectSession(session: Session) {
   inspectedTarget.value = { kind: "session", session };
 }
+
+// Desktop alerts — opt-in toggle, persisted in localStorage.
+const DESKTOP_ALERTS_KEY = "attention.desktop_enabled";
+const desktopAlertsEnabled = ref(
+  typeof localStorage !== "undefined" &&
+    localStorage.getItem(DESKTOP_ALERTS_KEY) === "true",
+);
+
+const previouslyFlagged = new Set<string>();
+
+// Seed on mount so we don't fire notifications for sessions that were already
+// in the attention state when the page loaded.
+onMounted(() => {
+  for (const s of sortedSessions.value) {
+    if (s.needs_attention) previouslyFlagged.add(s.id);
+  }
+});
+
+async function toggleDesktopAlerts() {
+  if (desktopAlertsEnabled.value) {
+    desktopAlertsEnabled.value = false;
+    localStorage.setItem(DESKTOP_ALERTS_KEY, "false");
+    return;
+  }
+
+  if (typeof Notification === "undefined") {
+    console.warn("Browser does not support notifications");
+    return;
+  }
+
+  if (Notification.permission === "granted") {
+    desktopAlertsEnabled.value = true;
+    localStorage.setItem(DESKTOP_ALERTS_KEY, "true");
+    return;
+  }
+
+  const result = await Notification.requestPermission();
+  if (result === "granted") {
+    desktopAlertsEnabled.value = true;
+    localStorage.setItem(DESKTOP_ALERTS_KEY, "true");
+  }
+}
+
+// Watch for new attention transitions and fire a browser Notification for
+// each session that flipped to needs_attention since the last tick.
+watch(
+  () =>
+    sortedSessions.value.map((s) => ({
+      id: s.id,
+      needs: s.needs_attention,
+      cwd: s.cwd,
+    })),
+  (current) => {
+    const currentFlagged = new Set<string>();
+    for (const s of current) {
+      if (s.needs) currentFlagged.add(s.id);
+    }
+
+    if (
+      desktopAlertsEnabled.value &&
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted"
+    ) {
+      for (const s of current) {
+        if (s.needs && !previouslyFlagged.has(s.id)) {
+          new Notification("Claude is waiting", {
+            body: s.cwd ?? "Claude Code session needs your attention",
+            tag: s.id,
+          });
+        }
+      }
+    }
+
+    previouslyFlagged.clear();
+    for (const id of currentFlagged) previouslyFlagged.add(id);
+  },
+  { deep: true },
+);
 
 const sessionCount = computed(() => sortedSessions.value.length);
 const activeSessionCount = computed(
@@ -121,12 +199,24 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
       </div>
 
       <div class="flex items-center gap-4">
+        <button
+          class="flex items-center gap-1.5 px-2 py-0.5 rounded border transition-colors"
+          :class="desktopAlertsEnabled
+            ? 'border-amber-glow/50 bg-amber-glow/10 text-amber-glow'
+            : 'border-ink-border bg-ink-mid text-ghost hover:border-amber-muted hover:text-amber-glow'"
+          :title="desktopAlertsEnabled ? 'Desktop alerts ON (click to disable)' : 'Desktop alerts OFF (click to enable)'"
+          @click="toggleDesktopAlerts"
+        >
+          <span class="text-sm leading-none">{{ desktopAlertsEnabled ? '🔔' : '🔕' }}</span>
+          <span class="text-[0.6rem] uppercase tracking-wider">Alerts</span>
+        </button>
+
         <div
           v-if="attentionCount > 0"
           class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-glow/50 bg-amber-glow/10 animate-pulse"
           :title="`${attentionCount} session(s) waiting for input`"
         >
-          <span class="text-amber-glow text-sm leading-none">🔔</span>
+          <span class="text-amber-glow text-sm leading-none">⚠</span>
           <span class="text-xs font-semibold text-amber-glow">{{ attentionCount }}</span>
         </div>
 
