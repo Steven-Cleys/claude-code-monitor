@@ -33,6 +33,41 @@ export async function markSessionEnded(sessionId: string) {
   `;
 }
 
+/**
+ * Flip a session into the attention-needed state. Idempotent — returns
+ * `{ changed: false }` if the session was already flagged, which lets callers
+ * skip the broadcast.
+ */
+export async function setSessionAttention(sessionId: string) {
+  const [row] = await sql`
+    UPDATE sessions
+    SET needs_attention = TRUE,
+        attention_since = NOW()
+    WHERE id = ${sessionId} AND needs_attention = FALSE
+    RETURNING id, attention_since
+  `;
+  if (!row) return { changed: false as const };
+  return {
+    changed: true as const,
+    attention_since: row.attention_since as string,
+  };
+}
+
+/**
+ * Clear the attention-needed state. Idempotent — returns `{ changed: false }`
+ * if the session was not flagged.
+ */
+export async function clearSessionAttention(sessionId: string) {
+  const [row] = await sql`
+    UPDATE sessions
+    SET needs_attention = FALSE,
+        attention_since = NULL
+    WHERE id = ${sessionId} AND needs_attention = TRUE
+    RETURNING id
+  `;
+  return { changed: Boolean(row) };
+}
+
 export async function getActiveSessions(sinceHours = 4) {
   const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
   return sql`
@@ -41,6 +76,8 @@ export async function getActiveSessions(sinceHours = 4) {
       (SELECT e.tool_name FROM events e WHERE e.session_id = s.id ORDER BY e.created_at DESC LIMIT 1) as last_tool
     FROM sessions s
     WHERE s.last_seen > ${since}
-    ORDER BY s.last_seen DESC
+    ORDER BY s.needs_attention DESC,
+             s.attention_since DESC NULLS LAST,
+             s.last_seen DESC
   `;
 }
