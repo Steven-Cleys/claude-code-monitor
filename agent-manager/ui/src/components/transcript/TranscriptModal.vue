@@ -1,17 +1,44 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
-import type { Subagent } from "../../types/events";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import type { Session, Subagent } from "../../types/events";
 import { useTranscript } from "../../composables/useTranscript";
+import { shortId } from "../../utils/format";
 import TranscriptHeader from "./TranscriptHeader.vue";
 import TranscriptMessageList from "./TranscriptMessageList.vue";
 
+type InspectTarget =
+  | { kind: "subagent"; subagent: Subagent }
+  | { kind: "session"; session: Session };
+
 const props = defineProps<{
-  subagent: Subagent;
+  target: InspectTarget;
 }>();
 
 const emit = defineEmits<{
   close: [];
 }>();
+
+const resolved = computed(() => {
+  if (props.target.kind === "subagent") {
+    const sa = props.target.subagent;
+    return {
+      id: sa.agent_id ?? "",
+      kind: "subagent" as const,
+      name: sa.name,
+      agentType: sa.subagent_type,
+      status: sa.status,
+    };
+  }
+  const s = props.target.session;
+  const status: "running" | "completed" = s.status === "ended" ? "completed" : "running";
+  return {
+    id: s.id,
+    kind: "session" as const,
+    name: shortId(s.id),
+    agentType: "main",
+    status,
+  };
+});
 
 // Guard against a null agent_id slipping through from a stale `inspectedSubagent`
 // ref. The parent already guards handleInspectAgent, but this is belt and
@@ -30,10 +57,10 @@ const {
   messageCount,
   toolResults,
   jumpToLatest,
-} = useTranscript(props.subagent.agent_id ?? "", props.subagent.status);
+} = useTranscript(resolved.value.id, resolved.value.status, resolved.value.kind);
 
 onMounted(() => {
-  if (!props.subagent.agent_id) emit("close");
+  if (!resolved.value.id) emit("close");
 });
 
 const messageListRef = ref<InstanceType<typeof TranscriptMessageList> | null>(null);
@@ -64,9 +91,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
     >
       <div class="flex flex-col w-[calc(100vw-2rem)] h-[calc(100vh-2rem)] max-w-7xl bg-ink rounded-lg border border-ink-border shadow-2xl overflow-hidden">
         <TranscriptHeader
-          :name="subagent.name"
-          :agent-type="subagent.subagent_type"
-          :status="subagent.status"
+          :name="resolved.name"
+          :agent-type="resolved.agentType"
+          :status="resolved.status"
           :metadata="metadata"
           :is-live="isLive"
           @close="emit('close')"

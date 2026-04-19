@@ -4,7 +4,7 @@ import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
 import AgentList from "./components/AgentList.vue";
 import TranscriptModal from "./components/transcript/TranscriptModal.vue";
-import type { Subagent } from "./types/events";
+import type { Session, Subagent } from "./types/events";
 import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -35,11 +35,20 @@ const {
 } = useAgents(messages);
 
 const sidebarCollapsed = ref(false);
-const inspectedSubagent = ref<Subagent | null>(null);
+
+type InspectTarget =
+  | { kind: "subagent"; subagent: Subagent }
+  | { kind: "session"; session: Session };
+
+const inspectedTarget = ref<InspectTarget | null>(null);
 
 function handleInspectAgent(subagent: Subagent) {
   if (!subagent.agent_id) return;
-  inspectedSubagent.value = subagent;
+  inspectedTarget.value = { kind: "subagent", subagent };
+}
+
+function handleInspectSession(session: Session) {
+  inspectedTarget.value = { kind: "session", session };
 }
 
 const sessionCount = computed(() => sortedSessions.value.length);
@@ -54,8 +63,8 @@ function refresh() {
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "Escape") {
-    if (inspectedSubagent.value) {
-      inspectedSubagent.value = null;
+    if (inspectedTarget.value) {
+      inspectedTarget.value = null;
     } else if (expandedEventId.value !== null) {
       expandedEventId.value = null;
     }
@@ -164,6 +173,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
             @select="(id) => { selectedSessionId = id; clearSubagentFilter(); }"
             @filter-by-agent="filterBySubagent"
             @inspect-agent="handleInspectAgent"
+            @inspect-session="handleInspectSession"
           />
         </div>
       </aside>
@@ -220,9 +230,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
     <!-- Transcript Modal -->
     <TranscriptModal
-      v-if="inspectedSubagent"
-      :subagent="inspectedSubagent"
-      @close="inspectedSubagent = null"
+      v-if="inspectedTarget"
+      :target="inspectedTarget"
+      @close="inspectedTarget = null"
     />
   </div>
 </template>

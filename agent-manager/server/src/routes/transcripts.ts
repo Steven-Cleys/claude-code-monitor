@@ -3,7 +3,9 @@ import { sql } from "../db/connection";
 import {
   readTranscriptFile,
   resolveTranscriptPath,
+  resolveSessionTranscriptPath,
   hostPathToContainerPath,
+  extractMetadata,
 } from "../services/transcript-reader";
 import { persistSubagentMetadata } from "../services/subagent-metadata";
 import { registerTranscriptPath, startWatching } from "../services/transcript-watcher";
@@ -13,6 +15,44 @@ type BroadcastFn = (topic: string, data: unknown) => void;
 
 export function createTranscriptsRouter(broadcast: BroadcastFn) {
   const router = new Hono();
+
+  router.get("/session/:sessionId", async (c) => {
+    const sessionId = c.req.param("sessionId");
+
+    const [session] = await sql`
+      SELECT id, cwd, status FROM sessions WHERE id = ${sessionId} LIMIT 1
+    `;
+
+    if (!session?.cwd) {
+      return c.json({ error: "Session not found or missing cwd" }, 404);
+    }
+
+    const filePath = resolveSessionTranscriptPath(sessionId, session.cwd as string);
+    const messages = await readTranscriptFile(filePath);
+    const isLive = session.status !== "ended";
+
+    if (messages.length === 0 && !isLive) {
+      return c.json({ error: "Transcript file not found or empty" }, 404);
+    }
+
+    // Build a lightweight metadata payload mirroring the subagent shape so the
+    // UI header can render model + token counts uniformly. Not persisted —
+    // session-level stats already live on the sessions row.
+    const extracted = extractMetadata(messages, sessionId, sessionId);
+    const metadata: SubagentMetadata = {
+      ...extracted,
+      transcript_path: filePath,
+      extracted_at: new Date().toISOString(),
+    };
+
+    if (isLive) {
+      registerTranscriptPath(sessionId, filePath);
+      startWatching(sessionId, broadcast);
+    }
+
+    const response: TranscriptResponse = { messages, metadata, isLive };
+    return c.json(response);
+  });
 
   router.get("/:agentId", async (c) => {
     const agentId = c.req.param("agentId");

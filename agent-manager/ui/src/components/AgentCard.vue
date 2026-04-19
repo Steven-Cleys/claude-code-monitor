@@ -15,6 +15,7 @@ const emit = defineEmits<{
   select: [id: string];
   filterByAgent: [sessionId: string, agentName: string];
   inspectAgent: [subagent: Subagent];
+  inspectSession: [session: Session];
 }>();
 
 function statusClass(status: string): string {
@@ -67,6 +68,13 @@ function cwdShort(cwd: string | null): string {
       }">
         {{ statusLabel(session.status) }}
       </span>
+      <button
+        class="text-[0.6rem] px-1.5 py-0.5 rounded border border-ink-border text-ghost hover:text-cyan-glow hover:border-cyan-glow/40 transition-colors"
+        title="View main transcript"
+        @click.stop="emit('inspectSession', session)"
+      >
+        view
+      </button>
     </div>
 
     <!-- Model + time row -->

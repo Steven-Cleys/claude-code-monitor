@@ -1,7 +1,13 @@
 import { ref, computed, onUnmounted } from "vue";
 import type { TranscriptLine, ContentBlock, SubagentMetadata } from "../types/events";
 
-export function useTranscript(agentId: string, status: "running" | "completed") {
+export function useTranscript(
+  id: string,
+  status: "running" | "completed",
+  kind: "subagent" | "session" = "subagent",
+) {
+  const agentId = id;
+  const apiUrl = kind === "session" ? `/api/transcripts/session/${id}` : `/api/transcripts/${id}`;
   const messages = ref<TranscriptLine[]>([]);
   const metadata = ref<SubagentMetadata | null>(null);
   const isLoading = ref(true);
@@ -64,7 +70,7 @@ export function useTranscript(agentId: string, status: "running" | "completed") 
 
   async function fetchTranscript() {
     try {
-      const res = await fetch(`/api/transcripts/${agentId}`);
+      const res = await fetch(apiUrl);
       if (!res.ok) {
         error.value = res.status === 404 ? "Transcript not found" : `Error: ${res.status}`;
         isLoading.value = false;

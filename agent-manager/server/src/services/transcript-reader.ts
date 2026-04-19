@@ -70,11 +70,22 @@ export function extractMetadata(
   };
 }
 
+// Claude Code's on-disk project hash turns both `/` and `_` into `-`, and
+// keeps the leading slash as a leading dash (e.g. `/Users/a/ai_tools/foo`
+// → `-Users-a-ai-tools-foo`). The prior implementation stripped the leading
+// slash and left underscores alone, which produced a wrong path whenever
+// the cwd contained an underscore or was used without an explicit
+// `agent_transcript_path` payload.
+function cwdToProjectHash(cwd: string): string {
+  return cwd.replace(/[/_]/g, "-");
+}
+
 export function resolveTranscriptPath(agentId: string, sessionId: string, cwd: string): string {
-  // Strip the leading slash before replacing separators — Claude Code's
-  // on-disk project dir uses `Users-x-...`, not `-Users-x-...`.
-  const projectHash = cwd.replace(/^\//, "").replace(/\//g, "-");
-  return `${CLAUDE_PROJECTS_DIR}/${projectHash}/${sessionId}/subagents/agent-${agentId}.jsonl`;
+  return `${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}/subagents/agent-${agentId}.jsonl`;
+}
+
+export function resolveSessionTranscriptPath(sessionId: string, cwd: string): string {
+  return `${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}.jsonl`;
 }
 
 // Converts a host path like `/home/user/.claude/projects/<hash>/<id>/...`

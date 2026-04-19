@@ -12,6 +12,7 @@ const emit = defineEmits<{
   select: [id: string | null];
   filterByAgent: [sessionId: string, agentName: string];
   inspectAgent: [subagent: import("../types/events").Subagent];
+  inspectSession: [session: Session];
 }>();
 
 function handleSelect(id: string) {
@@ -40,6 +41,7 @@ function handleSelect(id: string) {
         @select="handleSelect"
         @filter-by-agent="(sessionId, agentName) => emit('filterByAgent', sessionId, agentName)"
         @inspect-agent="(agent) => emit('inspectAgent', agent)"
+        @inspect-session="(s) => emit('inspectSession', s)"
       />
     </TransitionGroup>
     <div v-if="sessions.length === 0" class="text-ghost text-xs text-center py-8 tracking-wide">
