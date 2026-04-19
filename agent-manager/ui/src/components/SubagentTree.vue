@@ -86,6 +86,13 @@ function modelTier(model: string | null | undefined): string {
         <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="statusDotClass(agent.status)" />
         <span class="text-[0.65rem] font-mono text-indigo-300 truncate" :title="agent.name">{{ agent.name }}</span>
         <span
+          v-if="agent.subagent_type || agent.agent_type"
+          class="text-[0.5rem] px-1 rounded bg-ink-surface text-ghost-light border border-ink-border shrink-0 truncate max-w-[7rem]"
+          :title="agent.subagent_type || agent.agent_type || ''"
+        >
+          {{ agent.subagent_type || agent.agent_type }}
+        </span>
+        <span
           v-if="agent.metadata?.model"
           class="text-[0.5rem] px-1 rounded bg-indigo-900/30 text-purple-300 border border-indigo-700/30 shrink-0"
         >
