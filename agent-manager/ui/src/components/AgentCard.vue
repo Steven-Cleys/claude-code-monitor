@@ -5,7 +5,7 @@ import { calculateCost } from "../utils/pricing";
 import { getSessionColor } from "../composables/useSessionColors";
 import SubagentTree from "./SubagentTree.vue";
 
-defineProps<{
+const props = defineProps<{
   session: Session;
   selected: boolean;
   activeSubagentFilter: string | null;
@@ -43,18 +43,42 @@ function cwdShort(cwd: string | null): string {
   const parts = cwd.split("/");
   return parts.slice(-2).join("/");
 }
+
+async function dismissAttention() {
+  try {
+    await fetch(`/api/sessions/${props.session.id}/dismiss-attention`, {
+      method: "POST",
+    });
+    // No local mutation — the server broadcast flips the flag reactively.
+  } catch (err) {
+    console.error("Failed to dismiss attention:", err);
+  }
+}
 </script>
 
 <template>
   <div
-    class="rounded border p-3 cursor-pointer transition-all duration-200 group"
-    :class="
+    class="rounded border p-3 cursor-pointer transition-all duration-200 group relative"
+    :class="[
       selected
         ? 'border-amber-glow/40 bg-amber-glow/5 glow-amber'
-        : 'border-ink-border bg-ink-mid/50 hover:border-ink-border-light hover:bg-ink-mid'
-    "
+        : 'border-ink-border bg-ink-mid/50 hover:border-ink-border-light hover:bg-ink-mid',
+      session.needs_attention
+        ? 'ring-2 ring-amber-glow/70 ring-offset-1 ring-offset-ink animate-pulse'
+        : '',
+    ]"
     @click="emit('select', session.id)"
   >
+    <!-- Attention badge — appears only when the session is blocked on user input -->
+    <button
+      v-if="session.needs_attention"
+      class="absolute -top-2 -right-2 text-[0.55rem] font-semibold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-glow text-ink border border-amber-glow shadow-md hover:bg-amber-glow/90 transition-colors z-10"
+      :title="session.attention_since ? `Waiting ${timeSince(session.attention_since)} — click to dismiss` : 'Click to dismiss'"
+      @click.stop="dismissAttention"
+    >
+      ⚠ WAITING<span v-if="session.attention_since"> · {{ timeSince(session.attention_since) }}</span>
+    </button>
+
     <!-- Header row: status + ID + time -->
     <div class="flex items-center gap-2 mb-2">
       <span class="w-2 h-2 rounded-full shrink-0" :class="statusClass(session.status)" />
