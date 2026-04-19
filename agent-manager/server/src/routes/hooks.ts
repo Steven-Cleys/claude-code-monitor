@@ -1,11 +1,19 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { storeEvent } from "../services/event-store";
-import { markSessionEnded } from "../services/session-tracker";
+import {
+  markSessionEnded,
+  setSessionAttention,
+  clearSessionAttention,
+} from "../services/session-tracker";
 import { SESSION_END_EVENTS } from "../constants";
 import { stopWatching, isWatching } from "../services/transcript-watcher";
 import { hostPathToContainerPath } from "../services/transcript-reader";
 import { persistSubagentMetadata } from "../services/subagent-metadata";
+import {
+  shouldTriggerAttention,
+  shouldClearAttention,
+} from "../services/attention-logic";
 
 const hookPayloadSchema = z.object({
   session_id: z.string().min(1).max(256),
@@ -21,6 +29,8 @@ const hookPayloadSchema = z.object({
   agent_id: z.string().optional(),
   agent_type: z.string().optional(),
   agent_transcript_path: z.string().optional(),
+  // Top-level on Notification events (permission_prompt / idle_prompt / auth_success).
+  notification_type: z.string().optional(),
 }).passthrough();
 
 type BroadcastFn = (topic: string, data: unknown) => void;
@@ -64,6 +74,35 @@ export function createHooksRouter(broadcast: BroadcastFn) {
       type: "new_event",
       data: eventBroadcast,
     });
+
+    // Attention-needed tracking — flip the session flag + broadcast so the UI
+    // can float blocked sessions to the top of the list. Guarded by the
+    // "changed" return so we don't re-broadcast or re-notify on duplicates.
+    if (shouldTriggerAttention(payload)) {
+      const result = await setSessionAttention(payload.session_id);
+      if (result.changed) {
+        broadcast("sessions", {
+          type: "session_attention_changed",
+          data: {
+            id: payload.session_id,
+            needs_attention: true,
+            attention_since: result.attention_since,
+          },
+        });
+      }
+    } else if (shouldClearAttention(payload)) {
+      const result = await clearSessionAttention(payload.session_id);
+      if (result.changed) {
+        broadcast("sessions", {
+          type: "session_attention_changed",
+          data: {
+            id: payload.session_id,
+            needs_attention: false,
+            attention_since: null,
+          },
+        });
+      }
+    }
 
     if (SESSION_END_EVENTS.includes(payload.hook_event_name)) {
       await markSessionEnded(payload.session_id);
