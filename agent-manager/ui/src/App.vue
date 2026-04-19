@@ -22,6 +22,7 @@ const {
   fetchSessions,
   fetchEvents,
   totalCost,
+  attentionCount,
   searchQuery,
   activeEventTypes,
   knownEventTypes,
@@ -120,6 +121,15 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
       </div>
 
       <div class="flex items-center gap-4">
+        <div
+          v-if="attentionCount > 0"
+          class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-glow/50 bg-amber-glow/10 animate-pulse"
+          :title="`${attentionCount} session(s) waiting for input`"
+        >
+          <span class="text-amber-glow text-sm leading-none">🔔</span>
+          <span class="text-xs font-semibold text-amber-glow">{{ attentionCount }}</span>
+        </div>
+
         <div v-if="totalCost > 0" class="flex items-center gap-2">
           <span class="text-[0.65rem] uppercase tracking-widest text-ghost">Cost</span>
           <span class="text-sm font-semibold text-amber-glow">{{ formatCost(totalCost) }}</span>
