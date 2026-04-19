@@ -6,6 +6,8 @@ export interface Session {
   status: "active" | "idle" | "ended";
   first_seen: string;
   last_seen: string;
+  needs_attention: boolean;
+  attention_since: string | null;
   event_count?: number;
   last_tool?: string | null;
   tokens?: Record<string, number>;
@@ -88,6 +90,7 @@ export type WsMessage =
   | { type: "session_status_changed"; data: { id: string; status: Session["status"]; last_seen?: string } }
   | { type: "session_enriched"; data: { id: string; model?: string } }
   | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } }
+  | { type: "session_attention_changed"; data: { id: string; needs_attention: boolean; attention_since: string | null } }
   | { type: "subagent_metadata_updated"; data: { session_id: string; agent_id: string; metadata: SubagentMetadata } }
   | { type: "transcript_line"; agentId: string; data: TranscriptLine }
   | { type: "transcript_complete"; agentId: string };
