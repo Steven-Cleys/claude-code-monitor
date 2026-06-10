@@ -43,10 +43,26 @@ export function eventIcon(eventType: string) {
     case "Stop":
     case "SessionEnd":
       return "\u25CB";
+    case "StopFailure":
+      return "\u2A02";
     case "SessionStart":
       return "\u25CF";
     case "Notification":
       return "\u25C6";
+    case "PreCompact":
+      return "\u25BD";
+    case "PostCompact":
+      return "\u25B3";
+    case "PermissionRequest":
+      return "\u26A1";
+    case "PermissionDenied":
+      return "\u2298";
+    case "TaskCreated":
+      return "\u25A1";
+    case "TaskCompleted":
+      return "\u25A0";
+    case "TeammateIdle":
+      return "\u23F8";
     default:
       return "\u2022";
   }

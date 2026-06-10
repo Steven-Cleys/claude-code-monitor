@@ -5,10 +5,14 @@
 
 AGENT_MANAGER_URL="${AGENT_MANAGER_URL:-http://localhost:3001}"
 
+# Fire-and-forget: background the POST so the hook returns immediately
+# instead of blocking Claude Code on network round-trip (~50ms per tool call).
 payload=$(cat)
-curl -sf -X POST "${AGENT_MANAGER_URL}/api/hooks" \
-  -H 'Content-Type: application/json' \
-  -d "$payload" \
-  >/dev/null 2>&1 || true
+(
+  curl -sf --max-time 3 -X POST "${AGENT_MANAGER_URL}/api/hooks" \
+    -H 'Content-Type: application/json' \
+    -d "$payload" \
+    >/dev/null 2>&1 || true
+) &
 
 exit 0

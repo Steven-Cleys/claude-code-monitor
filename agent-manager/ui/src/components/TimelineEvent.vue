@@ -16,11 +16,19 @@ function eventTypeColor(eventType: string): string {
   switch (eventType) {
     case "PreToolUse": return "text-cyan-glow";
     case "PostToolUse": return "text-signal-green";
-    case "PostToolUseFailure": return "text-signal-red";
+    case "PostToolUseFailure":
+    case "StopFailure":
+    case "PermissionDenied": return "text-signal-red";
     case "SessionStart": return "text-amber-glow";
     case "SessionEnd":
     case "Stop": return "text-ghost-light";
     case "Notification": return "text-purple-400";
+    case "PermissionRequest": return "text-purple-400";
+    case "PreCompact":
+    case "PostCompact": return "text-amber-glow";
+    case "TaskCreated":
+    case "TaskCompleted": return "text-cyan-glow";
+    case "TeammateIdle": return "text-yellow-400";
     default: return "text-ghost-light";
   }
 }

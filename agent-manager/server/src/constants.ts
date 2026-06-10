@@ -3,7 +3,7 @@ export const SESSION_TRACKER_INTERVAL_MS = 30_000;
 export const LOKI_POLL_INTERVAL_MS = 15_000;
 export const PROMETHEUS_POLL_INTERVAL_MS = 30_000;
 
-export const SESSION_END_EVENTS = ["Stop", "SessionEnd"] as const;
+export const SESSION_END_EVENTS = ["Stop", "StopFailure", "SessionEnd"] as const;
 
 export const LOKI_QUERY = '{service_name="claude-code"} | json';
 export const PROMETHEUS_TOKEN_QUERY =

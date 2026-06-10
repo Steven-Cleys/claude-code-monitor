@@ -74,6 +74,16 @@ describe("shouldClearAttention", () => {
     expect(shouldClearAttention({ hook_event_name: "SessionEnd" })).toBe(true);
   });
 
+  test("returns true for StopFailure", () => {
+    expect(shouldClearAttention({ hook_event_name: "StopFailure" })).toBe(true);
+  });
+
+  test("returns false for PermissionRequest", () => {
+    expect(
+      shouldClearAttention({ hook_event_name: "PermissionRequest" }),
+    ).toBe(false);
+  });
+
   test("returns false for Notification", () => {
     expect(
       shouldClearAttention({ hook_event_name: "Notification" }),

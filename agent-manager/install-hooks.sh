@@ -40,9 +40,17 @@ EVENTS=(
   "PostToolUse"
   "PostToolUseFailure"
   "Stop"
+  "StopFailure"
   "SubagentStart"
   "SubagentStop"
   "Notification"
+  "PreCompact"
+  "PostCompact"
+  "PermissionRequest"
+  "PermissionDenied"
+  "TaskCreated"
+  "TaskCompleted"
+  "TeammateIdle"
 )
 
 if [[ "${1:-}" == "--uninstall" ]]; then

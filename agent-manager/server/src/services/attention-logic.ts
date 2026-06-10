@@ -7,6 +7,7 @@ const ATTENTION_CLEAR_EVENTS = new Set<string>([
   "PreToolUse",
   "PostToolUse",
   "Stop",
+  "StopFailure",
   "SessionEnd",
 ]);
 
