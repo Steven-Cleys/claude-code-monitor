@@ -37,6 +37,23 @@ const {
 
 const sidebarCollapsed = ref(false);
 
+function usePersistedCollapse(key: string) {
+  const state = ref(
+    typeof localStorage !== "undefined" &&
+      localStorage.getItem(key) === "true",
+  );
+  watch(state, (v) => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(key, v ? "true" : "false");
+    }
+  });
+  return state;
+}
+
+const toolTimelineCollapsed = usePersistedCollapse("panel.toolTimeline.collapsed");
+const subagentTimelineCollapsed = usePersistedCollapse("panel.subagentTimeline.collapsed");
+const eventStreamCollapsed = usePersistedCollapse("panel.eventStream.collapsed");
+
 type InspectTarget =
   | { kind: "subagent"; subagent: Subagent }
   | { kind: "session"; session: Session };
@@ -286,10 +303,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           :known-event-types="knownEventTypes"
           :result-count="filteredEvents.length"
           :subagent-filter-name="activeSubagentFilter?.name ?? null"
+          :collapsed="eventStreamCollapsed"
           @update:search-query="searchQuery = $event"
           @toggle-type="toggleEventType"
           @clear-filters="clearFilters"
           @clear-subagent-filter="clearSubagentFilter"
+          @toggle-collapse="eventStreamCollapsed = !eventStreamCollapsed"
         />
         <!--
           Cap the swim lane to 18rem so a session with many subagents can't
@@ -302,15 +321,22 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           :messages="messages"
           :selected-session-id="selectedSessionId"
           :hours-filter="hoursFilter"
+          :collapsed="toolTimelineCollapsed"
           @scroll-to-event="handleScrollToEvent"
+          @toggle-collapse="toolTimelineCollapsed = !toolTimelineCollapsed"
         />
-        <div class="shrink-0 max-h-72 overflow-y-auto custom-scrollbar">
+        <div
+          class="shrink-0 overflow-y-auto custom-scrollbar"
+          :class="subagentTimelineCollapsed ? '' : 'max-h-72'"
+        >
           <SwimLaneChart
             :sessions="sortedSessions"
             :selected-session-id="selectedSessionId"
+            :collapsed="subagentTimelineCollapsed"
+            @toggle-collapse="subagentTimelineCollapsed = !subagentTimelineCollapsed"
           />
         </div>
-        <div class="flex-1 min-h-0">
+        <div v-show="!eventStreamCollapsed" class="flex-1 min-h-0">
           <Timeline
             :events="filteredEvents"
             :expanded-event-id="expandedEventId"

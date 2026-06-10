@@ -7,6 +7,7 @@ defineProps<{
   knownEventTypes: string[];
   resultCount: number;
   subagentFilterName: string | null;
+  collapsed?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -14,6 +15,7 @@ const emit = defineEmits<{
   toggleType: [type: string];
   clearFilters: [];
   clearSubagentFilter: [];
+  "toggle-collapse": [];
 }>();
 
 function hasActiveFilters(searchQuery: string, activeEventTypes: Set<string>): boolean {
@@ -33,16 +35,34 @@ function hasActiveFilters(searchQuery: string, activeEventTypes: Set<string>): b
       </div>
       <span class="chip bg-ink-surface text-ghost-light">{{ resultCount }}</span>
       <button
-        v-if="hasActiveFilters(searchQuery, activeEventTypes)"
-        class="text-[0.65rem] uppercase tracking-wider text-amber-glow/70 hover:text-amber-glow ml-auto transition-colors"
+        v-if="!collapsed && hasActiveFilters(searchQuery, activeEventTypes)"
+        class="text-[0.65rem] uppercase tracking-wider text-amber-glow/70 hover:text-amber-glow transition-colors"
         @click="emit('clearFilters')"
       >
         Clear filters
       </button>
+
+      <!-- Collapse toggle -->
+      <button
+        class="ml-auto text-ghost hover:text-amber-glow transition-colors p-0.5"
+        :title="collapsed ? 'Expand' : 'Collapse'"
+        @click="emit('toggle-collapse')"
+      >
+        <svg
+          class="w-3 h-3 transition-transform duration-200"
+          :class="{ '-rotate-90': collapsed }"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M3 4.5l3 3 3-3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
     </div>
 
     <!-- Active subagent filter pill -->
-    <div v-if="subagentFilterName" class="flex items-center gap-2">
+    <div v-if="!collapsed && subagentFilterName" class="flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[0.65rem] bg-indigo-500/10 border border-indigo-500/30 text-indigo-300">
         <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
         Agent: {{ subagentFilterName }}
@@ -56,7 +76,7 @@ function hasActiveFilters(searchQuery: string, activeEventTypes: Set<string>): b
     </div>
 
     <!-- Search input -->
-    <div class="relative">
+    <div v-show="!collapsed" class="relative">
       <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ghost" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
         <circle cx="6.5" cy="6.5" r="5" />
         <path d="M10.5 10.5L14.5 14.5" stroke-linecap="round" />
@@ -71,7 +91,7 @@ function hasActiveFilters(searchQuery: string, activeEventTypes: Set<string>): b
     </div>
 
     <!-- Event type toggles -->
-    <div v-if="knownEventTypes.length > 0" class="flex flex-wrap gap-1.5">
+    <div v-if="!collapsed && knownEventTypes.length > 0" class="flex flex-wrap gap-1.5">
       <button
         v-for="type in knownEventTypes"
         :key="type"

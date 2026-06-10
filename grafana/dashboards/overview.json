@@ -21,7 +21,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(max by (session_id, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))", "refId": "A" }],
+      "targets": [{ "expr": "sum(increase(claude_code_cost_usage_USD_total[$__range]))", "refId": "A" }],
       "title": "Total Cost",
       "type": "stat"
     },
@@ -89,7 +89,7 @@
       "gridPos": { "h": 10, "w": 8, "x": 0, "y": 8 },
       "id": 5,
       "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [{ "expr": "sum by (model) (max by (session_id, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))", "legendFormat": "{{model}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[$__range]))", "legendFormat": "{{model}}", "refId": "A" }],
       "title": "Cost by Model",
       "type": "piechart"
     },
@@ -106,7 +106,7 @@
       "gridPos": { "h": 10, "w": 8, "x": 8, "y": 8 },
       "id": 6,
       "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [{ "expr": "sum by (terminal_type) (max by (session_id, terminal_type, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))", "legendFormat": "{{terminal_type}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (terminal_type) (increase(claude_code_cost_usage_USD_total[$__range]))", "legendFormat": "{{terminal_type}}", "refId": "A" }],
       "title": "Cost by Terminal",
       "type": "piechart"
     },

@@ -11,10 +11,12 @@ const props = defineProps<{
   messages: WsMessage[];
   selectedSessionId: string | null;
   hoursFilter: number;
+  collapsed?: boolean;
 }>();
 
 const emit = defineEmits<{
   "scroll-to-event": [eventId: number];
+  "toggle-collapse": [];
 }>();
 
 const eventsRef = computed(() => props.events);
@@ -120,6 +122,7 @@ function nodeColor(node: ToolTimelineNode): string {
 
       <!-- # toggle button -->
       <button
+        v-if="!collapsed"
         class="text-[0.55rem] font-[family-name:var(--font-mono)] px-1.5 py-0.5 border transition-colors"
         :class="showCounts
           ? 'border-[#22c55e] text-[#22c55e] bg-[#0d2018]'
@@ -131,16 +134,34 @@ function nodeColor(node: ToolTimelineNode): string {
 
       <!-- Clear filters button -->
       <button
-        v-if="activeToolFilters.size > 0"
+        v-if="!collapsed && activeToolFilters.size > 0"
         class="text-[0.55rem] font-[family-name:var(--font-mono)] px-1.5 py-0.5 border border-[#1a3020] text-[#4ade80]/60 hover:border-[#22c55e]/50 hover:text-[#4ade80]/80 transition-colors"
         @click="clearToolFilters"
       >
         clear
       </button>
+
+      <!-- Collapse toggle -->
+      <button
+        class="ml-auto text-[#4ade80]/60 hover:text-[#4ade80] transition-colors p-0.5"
+        :title="collapsed ? 'Expand' : 'Collapse'"
+        @click="emit('toggle-collapse')"
+      >
+        <svg
+          class="w-3 h-3 transition-transform duration-200"
+          :class="{ '-rotate-90': collapsed }"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M3 4.5l3 3 3-3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
     </div>
 
     <!-- Filter chips row -->
-    <div class="flex items-center gap-1 flex-wrap mb-3">
+    <div v-show="!collapsed" class="flex items-center gap-1 flex-wrap mb-3">
       <button
         v-for="toolName in knownToolTypes"
         :key="toolName"
@@ -165,7 +186,7 @@ function nodeColor(node: ToolTimelineNode): string {
     </div>
 
     <!-- Scrollable strip -->
-    <div class="relative">
+    <div v-show="!collapsed" class="relative">
       <div
         ref="scrollContainer"
         class="overflow-x-auto pcb-substrate rounded-sm py-3 px-2"

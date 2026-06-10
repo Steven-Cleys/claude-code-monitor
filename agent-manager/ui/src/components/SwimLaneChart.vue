@@ -7,6 +7,11 @@ import { useChartData } from "../composables/useChartData";
 const props = defineProps<{
   sessions: Session[];
   selectedSessionId: string | null;
+  collapsed?: boolean;
+}>();
+
+const emit = defineEmits<{
+  "toggle-collapse": [];
 }>();
 
 const sessionsRef = computed(() => props.sessions);
@@ -53,10 +58,28 @@ const NODE_SIZE = 6;
         Subagent Timeline
       </span>
       <span class="pcb-chip">{{ chartData.bars.length }}</span>
+
+      <!-- Collapse toggle -->
+      <button
+        class="ml-auto text-[#4ade80]/60 hover:text-[#4ade80] transition-colors p-0.5"
+        :title="collapsed ? 'Expand' : 'Collapse'"
+        @click="emit('toggle-collapse')"
+      >
+        <svg
+          class="w-3 h-3 transition-transform duration-200"
+          :class="{ '-rotate-90': collapsed }"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M3 4.5l3 3 3-3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
     </div>
 
     <!-- Chart body -->
-    <div class="flex">
+    <div v-show="!collapsed" class="flex">
       <!-- Label column -->
       <div
         class="shrink-0 flex flex-col justify-start"
