@@ -9,7 +9,6 @@ import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
 import StatusBar from "./components/StatusBar.vue";
 import SwimLaneChart from "./components/SwimLaneChart.vue";
-import ToolTimeline from "./components/ToolTimeline.vue";
 import { formatCost } from "./utils/format";
 
 const { connected, messages } = useWebSocket();
@@ -50,7 +49,6 @@ function usePersistedCollapse(key: string) {
   return state;
 }
 
-const toolTimelineCollapsed = usePersistedCollapse("panel.toolTimeline.collapsed");
 const subagentTimelineCollapsed = usePersistedCollapse("panel.subagentTimeline.collapsed");
 const eventStreamCollapsed = usePersistedCollapse("panel.eventStream.collapsed");
 
@@ -165,10 +163,6 @@ function onKeydown(e: KeyboardEvent) {
       expandedEventId.value = null;
     }
   }
-}
-
-function handleScrollToEvent(eventId: number) {
-  expandedEventId.value = eventId;
 }
 
 onMounted(() => window.addEventListener("keydown", onKeydown));
@@ -316,15 +310,6 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           to ~3 visible rows). Timeline gets `min-h-0 flex-1` so it actually
           claims the remaining height inside the flex column.
         -->
-        <ToolTimeline
-          :events="events"
-          :messages="messages"
-          :selected-session-id="selectedSessionId"
-          :hours-filter="hoursFilter"
-          :collapsed="toolTimelineCollapsed"
-          @scroll-to-event="handleScrollToEvent"
-          @toggle-collapse="toolTimelineCollapsed = !toolTimelineCollapsed"
-        />
         <div
           class="shrink-0 overflow-y-auto custom-scrollbar"
           :class="subagentTimelineCollapsed ? '' : 'max-h-72'"
