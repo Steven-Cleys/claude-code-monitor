@@ -1,3 +1,6 @@
 .worktrees/
 .claude/worktrees/
 .superpowers/
+variants-preview/*
+!variants-preview/nginx.conf
+!variants-preview/index.html
