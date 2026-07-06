@@ -1,5 +1,5 @@
 import { ref, computed, watch, onMounted } from "vue";
-import type { Session, SubagentMetadata, TimelineEvent, WsMessage } from "../types/events";
+import type { Session, Subagent, SubagentMetadata, TimelineEvent, WsMessage } from "../types/events";
 import { calculateCost } from "../utils/pricing";
 
 export function useAgents(messages: { value: WsMessage[] }) {
@@ -110,7 +110,8 @@ export function useAgents(messages: { value: WsMessage[] }) {
             });
           }
 
-          if (msg.data.event_type === "SubagentStop" && session.subagents) {
+          if (msg.data.event_type === "SubagentStop") {
+            if (!session.subagents) session.subagents = [];
             const running = session.subagents.find((a) => a.status === "running");
             if (running) {
               running.status = "completed";
@@ -128,6 +129,30 @@ export function useAgents(messages: { value: WsMessage[] }) {
                   pendingMetadata.delete(msg.data.agent_id);
                 }
               }
+            } else if (msg.data.agent_id) {
+              // Stop-only subagent: anonymous / workflow / background agents fire
+              // only SubagentStop (no PreToolUse/Agent), so no running row was
+              // ever added. Surface it live as a completed row — mirrors the
+              // server's buildSubagents so it shows without needing a refresh.
+              const completed: Subagent = {
+                name: msg.data.agent_id.slice(-8),
+                description: "",
+                subagent_type: null,
+                agent_type: null,
+                agent_id: msg.data.agent_id,
+                status: "completed",
+                dispatched_at: msg.data.created_at,
+                completed_at: msg.data.created_at,
+                permission_mode: null,
+                last_message: null,
+                run_in_background: false,
+              };
+              const pending = pendingMetadata.get(msg.data.agent_id);
+              if (pending) {
+                completed.metadata = pending;
+                pendingMetadata.delete(msg.data.agent_id);
+              }
+              session.subagents.push(completed);
             }
           }
         }

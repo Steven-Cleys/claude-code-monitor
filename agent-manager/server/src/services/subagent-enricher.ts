@@ -69,6 +69,51 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
     FROM subagent_metadata
     WHERE session_id = ${sessionId}
   `;
+  return buildSubagents({ starts, dispatches, stops, metadataRows });
+}
+
+interface StartRow {
+  agent_id: string | null;
+  agent_type: string | null;
+  dispatched_at: string;
+}
+
+interface DispatchRow {
+  name: string | null;
+  description: string | null;
+  subagent_type: string | null;
+  run_in_background: boolean;
+  dispatched_at: string;
+}
+
+interface StopRow {
+  agent_id: string | null;
+  agent_type: string | null;
+  permission_mode: string | null;
+  last_message: string | null;
+  completed_at: string;
+}
+
+interface MetaRow {
+  agent_id: string;
+  model: string | null;
+  total_input_tokens: number | string;
+  total_output_tokens: number | string;
+  cache_read_tokens: number | string;
+  cache_creation_tokens: number | string;
+  tool_call_count: number | string;
+}
+
+// Pure merge of the four event sources into the sidebar's subagent rows.
+// Kept separate from the DB queries so it can be unit-tested without Postgres.
+export function buildSubagents(rows: {
+  starts: StartRow[];
+  dispatches: DispatchRow[];
+  stops: StopRow[];
+  metadataRows: MetaRow[];
+}): Subagent[] {
+  const { starts, dispatches, stops, metadataRows } = rows;
+
   const metadataByAgentId = new Map(metadataRows.map((m) => [m.agent_id, m]));
 
   // Index stops by agent_id for lookup
@@ -79,7 +124,19 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
 
   const MATCH_WINDOW_MS = 30_000;
 
-  return starts.map((start, i) => {
+  const toMetadata = (meta: MetaRow | null | undefined) =>
+    meta
+      ? {
+          model: meta.model,
+          total_input_tokens: Number(meta.total_input_tokens),
+          total_output_tokens: Number(meta.total_output_tokens),
+          cache_read_tokens: Number(meta.cache_read_tokens),
+          cache_creation_tokens: Number(meta.cache_creation_tokens),
+          tool_call_count: Number(meta.tool_call_count),
+        }
+      : null;
+
+  const started: Subagent[] = starts.map((start, i) => {
     const startTime = new Date(start.dispatched_at).getTime();
 
     // Find the closest PreToolUse/Agent event that:
@@ -111,20 +168,43 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
       subagent_type: dispatch?.subagent_type ?? null,
       agent_type: start.agent_type ?? null,
       agent_id: start.agent_id ?? null,
-      status: stop ? "completed" as const : "running" as const,
+      status: stop ? ("completed" as const) : ("running" as const),
       dispatched_at: start.dispatched_at,
       completed_at: stop?.completed_at ?? null,
       permission_mode: stop?.permission_mode ?? null,
       last_message: stop?.last_message ?? null,
       run_in_background: dispatch?.run_in_background ?? false,
-      metadata: meta ? {
-        model: meta.model,
-        total_input_tokens: Number(meta.total_input_tokens),
-        total_output_tokens: Number(meta.total_output_tokens),
-        cache_read_tokens: Number(meta.cache_read_tokens),
-        cache_creation_tokens: Number(meta.cache_creation_tokens),
-        tool_call_count: Number(meta.tool_call_count),
-      } : null,
+      metadata: toMetadata(meta),
     };
   });
+
+  // Stop-only subagents: anonymous / workflow / background agents fire only
+  // SubagentStop (no SubagentStart, no PreToolUse/Agent), so they never appear
+  // in `started`. Surface them as completed rows keyed on the stop, enriched
+  // with any metadata extracted on stop. Without a start we have no real
+  // dispatch time, so completed_at doubles as dispatched_at.
+  const startedAgentIds = new Set(starts.map((s) => s.agent_id));
+  const stopOnly: Subagent[] = [];
+  for (const stop of stopsByAgentId.values()) {
+    if (!stop.agent_id || startedAgentIds.has(stop.agent_id)) continue;
+    const shortId = stop.agent_id.slice(-8);
+    stopOnly.push({
+      name: shortId,
+      description: "",
+      subagent_type: null,
+      agent_type: stop.agent_type ?? null,
+      agent_id: stop.agent_id,
+      status: "completed" as const,
+      dispatched_at: stop.completed_at,
+      completed_at: stop.completed_at,
+      permission_mode: stop.permission_mode ?? null,
+      last_message: stop.last_message ?? null,
+      run_in_background: false,
+      metadata: toMetadata(metadataByAgentId.get(stop.agent_id)),
+    });
+  }
+
+  return [...started, ...stopOnly].sort(
+    (a, b) => new Date(a.dispatched_at).getTime() - new Date(b.dispatched_at).getTime(),
+  );
 }

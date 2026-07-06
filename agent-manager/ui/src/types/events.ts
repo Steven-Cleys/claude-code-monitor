@@ -54,6 +54,7 @@ export interface SubagentMetadata {
 
 export interface TranscriptLine {
   type: "user" | "assistant" | "progress";
+  uuid?: string;
   message?: {
     role?: "user" | "assistant";
     content?: string | ContentBlock[];
