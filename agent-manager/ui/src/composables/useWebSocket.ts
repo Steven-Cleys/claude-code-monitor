@@ -1,17 +1,14 @@
 import { ref, onUnmounted } from "vue";
 import type { WsMessage } from "../types/events";
+import { wsUrl } from "../utils/ws";
 
-const MAX_MESSAGES = 500;
-
-export function useWebSocket() {
+export function useWebSocket(onMessage: (msg: WsMessage) => void) {
   const connected = ref(false);
-  const messages = ref<WsMessage[]>([]);
   let ws: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   function connect() {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    ws = new WebSocket(wsUrl("/ws"));
 
     ws.onopen = () => {
       connected.value = true;
@@ -19,11 +16,7 @@ export function useWebSocket() {
     };
 
     ws.onmessage = (event) => {
-      const msg: WsMessage = JSON.parse(event.data);
-      if (messages.value.length >= MAX_MESSAGES) {
-        messages.value.splice(0, messages.value.length - MAX_MESSAGES + 1);
-      }
-      messages.value.push(msg);
+      onMessage(JSON.parse(event.data));
     };
 
     ws.onclose = () => {
@@ -45,5 +38,5 @@ export function useWebSocket() {
   connect();
   onUnmounted(disconnect);
 
-  return { connected, messages, disconnect };
+  return { connected, disconnect };
 }

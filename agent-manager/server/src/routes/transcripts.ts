@@ -10,8 +10,7 @@ import {
 import { persistSubagentMetadata } from "../services/subagent-metadata";
 import { registerTranscriptPath, startWatching } from "../services/transcript-watcher";
 import type { SubagentMetadata, TranscriptResponse } from "../types/transcript";
-
-type BroadcastFn = (topic: string, data: unknown) => void;
+import type { BroadcastFn } from "../types/broadcast";
 
 export function createTranscriptsRouter(broadcast: BroadcastFn) {
   const router = new Hono();
@@ -110,7 +109,7 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
     // 4. Extract and persist metadata (shared with the eager SubagentStop path)
     let metadata: SubagentMetadata | null = null;
     if (messages.length > 0 && sessionId) {
-      metadata = await persistSubagentMetadata(agentId, sessionId, filePath, broadcast);
+      metadata = await persistSubagentMetadata(agentId, sessionId, filePath, broadcast, messages);
     }
 
     // 5. Start watcher for live subagents

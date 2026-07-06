@@ -2,9 +2,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { storeEvent } from "../services/event-store";
 import {
-  markSessionEnded,
   setSessionAttention,
   clearSessionAttention,
+  broadcastAttentionChanged,
 } from "../services/session-tracker";
 import { SESSION_END_EVENTS } from "../constants";
 import { stopWatching, isWatching } from "../services/transcript-watcher";
@@ -14,6 +14,7 @@ import {
   shouldTriggerAttention,
   shouldClearAttention,
 } from "../services/attention-logic";
+import type { BroadcastFn } from "../types/broadcast";
 
 const hookPayloadSchema = z.object({
   session_id: z.string().min(1).max(256),
@@ -32,8 +33,6 @@ const hookPayloadSchema = z.object({
   // Top-level on Notification events (permission_prompt / idle_prompt / auth_success).
   notification_type: z.string().optional(),
 }).passthrough();
-
-type BroadcastFn = (topic: string, data: unknown) => void;
 
 export function createHooksRouter(broadcast: BroadcastFn) {
   const router = new Hono();
@@ -63,49 +62,31 @@ export function createHooksRouter(broadcast: BroadcastFn) {
       });
     }
 
-    // Forward the top-level agent_id on the broadcast so the UI can wire
-    // subagents to their real ID on SubagentStart/SubagentStop — it's not
-    // in `tool_input` for those lifecycle events (tool_input is null).
-    const eventBroadcast = payload.agent_id
-      ? { ...event, agent_id: payload.agent_id }
-      : event;
-
     broadcast("events", {
       type: "new_event",
-      data: eventBroadcast,
+      data: event,
     });
 
     // Attention-needed tracking — flip the session flag + broadcast so the UI
     // can float blocked sessions to the top of the list. Guarded by the
     // "changed" return so we don't re-broadcast or re-notify on duplicates.
+    // The clear path additionally checks the upserted row first: almost every
+    // event clears attention, so this skips a per-event UPDATE round-trip
+    // when the flag isn't set.
     if (shouldTriggerAttention(payload)) {
       const result = await setSessionAttention(payload.session_id);
       if (result.changed) {
-        broadcast("sessions", {
-          type: "session_attention_changed",
-          data: {
-            id: payload.session_id,
-            needs_attention: true,
-            attention_since: result.attention_since,
-          },
-        });
+        broadcastAttentionChanged(broadcast, payload.session_id, true, result.attention_since);
       }
-    } else if (shouldClearAttention(payload)) {
+    } else if (session.session?.needs_attention && shouldClearAttention(payload)) {
       const result = await clearSessionAttention(payload.session_id);
       if (result.changed) {
-        broadcast("sessions", {
-          type: "session_attention_changed",
-          data: {
-            id: payload.session_id,
-            needs_attention: false,
-            attention_since: null,
-          },
-        });
+        broadcastAttentionChanged(broadcast, payload.session_id, false, null);
       }
     }
 
+    // Status flips to 'ended' inside the upsert itself — no extra UPDATE here.
     if (SESSION_END_EVENTS.includes(payload.hook_event_name)) {
-      await markSessionEnded(payload.session_id);
       broadcast("sessions", {
         type: "session_status_changed",
         data: { id: payload.session_id, status: "ended" },

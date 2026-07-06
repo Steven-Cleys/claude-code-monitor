@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatTime } from "../utils/format";
+
 defineProps<{
   connected: boolean;
   sessionCount: number;
@@ -7,11 +9,7 @@ defineProps<{
 }>();
 
 function currentTime(): string {
-  return new Date().toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatTime(new Date());
 }
 </script>
 

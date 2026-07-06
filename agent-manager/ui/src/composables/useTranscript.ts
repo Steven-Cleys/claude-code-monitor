@@ -1,5 +1,6 @@
 import { ref, computed, onUnmounted } from "vue";
 import type { TranscriptLine, ContentBlock, SubagentMetadata } from "../types/events";
+import { wsUrl } from "../utils/ws";
 
 export function useTranscript(
   id: string,
@@ -90,8 +91,7 @@ export function useTranscript(
   function subscribeLive() {
     if (!isLive.value) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(`${protocol}//${window.location.host}/ws/transcript`);
+    ws = new WebSocket(wsUrl("/ws/transcript"));
 
     ws.onopen = () => {
       ws?.send(JSON.stringify({ action: "subscribe", topic: `transcript:${agentId}` }));
@@ -137,7 +137,6 @@ export function useTranscript(
   });
 
   return {
-    messages,
     filteredMessages,
     metadata,
     isLoading,

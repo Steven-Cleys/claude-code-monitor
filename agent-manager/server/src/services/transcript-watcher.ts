@@ -1,7 +1,6 @@
 import { watch, statSync, type FSWatcher } from "fs";
 import { parseTranscriptLine } from "./transcript-reader";
-
-type BroadcastFn = (topic: string, data: unknown) => void;
+import type { BroadcastFn } from "../types/broadcast";
 
 interface WatcherEntry {
   watcher: FSWatcher;
@@ -100,6 +99,9 @@ export function stopWatching(agentId: string, broadcast: BroadcastFn) {
   if (entry.safetyTimer) clearTimeout(entry.safetyTimer);
   entry.watcher.close();
   activeWatchers.delete(agentId);
+  // Drop the path registration too, or the map grows for the server's
+  // lifetime — a re-opened transcript re-registers before watching.
+  registeredPaths.delete(agentId);
 
   broadcast(`transcript:${agentId}`, {
     type: "transcript_complete",

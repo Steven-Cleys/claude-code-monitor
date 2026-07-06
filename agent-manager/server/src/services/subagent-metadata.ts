@@ -1,8 +1,7 @@
 import { sql } from "../db/connection";
 import { readTranscriptFile, extractMetadata } from "./transcript-reader";
-import type { SubagentMetadata } from "../types/transcript";
-
-type BroadcastFn = (topic: string, data: unknown) => void;
+import type { SubagentMetadata, TranscriptLine } from "../types/transcript";
+import type { BroadcastFn } from "../types/broadcast";
 
 // Per-agent lock so the eager SubagentStop path and the lazy transcripts
 // GET path don't race each other into a duplicate extract + broadcast pair
@@ -29,12 +28,15 @@ export async function persistSubagentMetadata(
   sessionId: string,
   filePath: string,
   broadcast: BroadcastFn,
+  // Callers that already read the transcript pass it in to avoid a second
+  // full-file read + parse of the same path.
+  preloadedMessages?: TranscriptLine[],
 ): Promise<SubagentMetadata | null> {
   if (inFlight.has(agentId)) return null;
   inFlight.add(agentId);
 
   try {
-    const messages = await readTranscriptFile(filePath);
+    const messages = preloadedMessages ?? (await readTranscriptFile(filePath));
     if (messages.length === 0) return null;
 
     const extracted = extractMetadata(messages, agentId, sessionId);
@@ -67,19 +69,14 @@ export async function persistSubagentMetadata(
       extracted_at: new Date().toISOString(),
     };
 
+    // The broadcast carries the summary slice only — ids travel alongside it.
+    const { agent_id, session_id, ...summary } = extracted;
     broadcast("sessions", {
       type: "subagent_metadata_updated",
       data: {
         session_id: sessionId,
         agent_id: agentId,
-        metadata: {
-          model: extracted.model,
-          total_input_tokens: extracted.total_input_tokens,
-          total_output_tokens: extracted.total_output_tokens,
-          cache_read_tokens: extracted.cache_read_tokens,
-          cache_creation_tokens: extracted.cache_creation_tokens,
-          tool_call_count: extracted.tool_call_count,
-        },
+        metadata: summary,
       },
     });
 

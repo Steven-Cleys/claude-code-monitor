@@ -1,5 +1,6 @@
 import { computed, type Ref } from "vue";
 import type { Session, Subagent } from "../types/events";
+import { formatTime } from "../utils/format";
 
 export interface ChartBar {
   name: string;
@@ -13,7 +14,6 @@ export interface ChartBar {
 
 export interface ChartData {
   bars: ChartBar[];
-  timeRange: { start: Date; end: Date };
   timeLabels: string[];
 }
 
@@ -62,14 +62,7 @@ export function useChartData(
 
     const timeLabels: string[] = [];
     for (let i = 0; i < 5; i++) {
-      const t = new Date(paddedStart + (paddedDuration * i) / 4);
-      timeLabels.push(
-        t.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-      );
+      timeLabels.push(formatTime(new Date(paddedStart + (paddedDuration * i) / 4)));
     }
 
     const bars: ChartBar[] = subagents.map((agent, i) => {
@@ -88,10 +81,6 @@ export function useChartData(
       };
     });
 
-    return {
-      bars,
-      timeRange: { start: new Date(paddedStart), end: new Date(paddedEnd) },
-      timeLabels,
-    };
+    return { bars, timeLabels };
   });
 }

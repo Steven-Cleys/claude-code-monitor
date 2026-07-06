@@ -1,4 +1,5 @@
 import { sql } from "../db/connection";
+import { SESSION_END_EVENTS } from "../constants";
 
 interface HookEvent {
   session_id: string;
@@ -17,15 +18,16 @@ export async function upsertSession(event: HookEvent) {
   // SessionEnd is a deferred cleanup event that can fire hours after the session
   // actually stopped — don't let it bump last_seen or it pollutes time-based filters.
   const isCleanupEvent = event.hook_event_name === "SessionEnd";
+  const isEndEvent = (SESSION_END_EVENTS as readonly string[]).includes(event.hook_event_name);
 
   const [row] = await sql`
     INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
-    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, 'active', NOW(), NOW())
+    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${isEndEvent ? "ended" : "active"}, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = ${isCleanupEvent ? sql`sessions.last_seen` : sql`NOW()`},
       -- Never resurrect an 'ended' session: late replays (e.g. a deferred
       -- SubagentStop) used to flip status back to 'active' here.
-      status = CASE WHEN sessions.status = 'ended' THEN 'ended' ELSE 'active' END,
+      status = CASE WHEN sessions.status = 'ended' OR ${isEndEvent} THEN 'ended' ELSE 'active' END,
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
       permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
       model = COALESCE(EXCLUDED.model, sessions.model)
@@ -39,17 +41,22 @@ export async function upsertSession(event: HookEvent) {
 export async function storeEvent(event: HookEvent) {
   const upsertResult = await upsertSession(event);
 
+  // tool_input / tool_response live in their own columns — keeping them in
+  // payload too would double the write volume for large tool responses.
+  const { tool_input, tool_response, ...payload } = event;
+
   const [row] = await sql`
     INSERT INTO events (session_id, event_type, tool_name, tool_input, tool_response, payload)
     VALUES (
       ${event.session_id},
       ${event.hook_event_name},
       ${event.tool_name ?? null},
-      ${event.tool_input ? sql.json(event.tool_input) : null},
-      ${event.tool_response ? sql.json(event.tool_response) : null},
-      ${sql.json(event)}
+      ${tool_input ? sql.json(tool_input) : null},
+      ${tool_response ? sql.json(tool_response) : null},
+      ${sql.json(payload)}
     )
-    RETURNING id, session_id, event_type, tool_name, tool_input, tool_response, created_at
+    RETURNING id, session_id, event_type, tool_name, tool_input, tool_response,
+              payload->>'agent_id' as agent_id, created_at
   `;
 
   return { event: row, session: upsertResult };

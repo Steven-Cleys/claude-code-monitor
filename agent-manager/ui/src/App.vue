@@ -4,17 +4,17 @@ import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
 import AgentList from "./components/AgentList.vue";
 import TranscriptModal from "./components/transcript/TranscriptModal.vue";
-import type { Session, Subagent } from "./types/events";
+import type { InspectTarget, Session, Subagent } from "./types/events";
 import Timeline from "./components/Timeline.vue";
 import TimelineFilters from "./components/TimelineFilters.vue";
 import StatusBar from "./components/StatusBar.vue";
 import SwimLaneChart from "./components/SwimLaneChart.vue";
 import { formatCost } from "./utils/format";
 
-const { connected, messages } = useWebSocket();
 const {
+  sessions,
   sortedSessions,
-  events,
+  processMessage,
   filteredEvents,
   selectedSessionId,
   hoursFilter,
@@ -32,11 +32,13 @@ const {
   activeSubagentFilter,
   filterBySubagent,
   clearSubagentFilter,
-} = useAgents(messages);
+} = useAgents();
+
+const { connected } = useWebSocket(processMessage);
 
 const sidebarCollapsed = ref(false);
 
-function usePersistedCollapse(key: string) {
+function usePersistedFlag(key: string) {
   const state = ref(
     typeof localStorage !== "undefined" &&
       localStorage.getItem(key) === "true",
@@ -49,12 +51,8 @@ function usePersistedCollapse(key: string) {
   return state;
 }
 
-const subagentTimelineCollapsed = usePersistedCollapse("panel.subagentTimeline.collapsed");
-const eventStreamCollapsed = usePersistedCollapse("panel.eventStream.collapsed");
-
-type InspectTarget =
-  | { kind: "subagent"; subagent: Subagent }
-  | { kind: "session"; session: Session };
+const subagentTimelineCollapsed = usePersistedFlag("panel.subagentTimeline.collapsed");
+const eventStreamCollapsed = usePersistedFlag("panel.eventStream.collapsed");
 
 const inspectedTarget = ref<InspectTarget | null>(null);
 
@@ -68,26 +66,11 @@ function handleInspectSession(session: Session) {
 }
 
 // Desktop alerts — opt-in toggle, persisted in localStorage.
-const DESKTOP_ALERTS_KEY = "attention.desktop_enabled";
-const desktopAlertsEnabled = ref(
-  typeof localStorage !== "undefined" &&
-    localStorage.getItem(DESKTOP_ALERTS_KEY) === "true",
-);
-
-const previouslyFlagged = new Set<string>();
-
-// Seed on mount so we don't fire notifications for sessions that were already
-// in the attention state when the page loaded.
-onMounted(() => {
-  for (const s of sortedSessions.value) {
-    if (s.needs_attention) previouslyFlagged.add(s.id);
-  }
-});
+const desktopAlertsEnabled = usePersistedFlag("attention.desktop_enabled");
 
 async function toggleDesktopAlerts() {
   if (desktopAlertsEnabled.value) {
     desktopAlertsEnabled.value = false;
-    localStorage.setItem(DESKTOP_ALERTS_KEY, "false");
     return;
   }
 
@@ -96,54 +79,43 @@ async function toggleDesktopAlerts() {
     return;
   }
 
-  if (Notification.permission === "granted") {
-    desktopAlertsEnabled.value = true;
-    localStorage.setItem(DESKTOP_ALERTS_KEY, "true");
+  if (Notification.permission !== "granted") {
+    const result = await Notification.requestPermission();
+    if (result !== "granted") return;
+  }
+  desktopAlertsEnabled.value = true;
+}
+
+// Fire a browser Notification for each session that flips to needs_attention.
+// Watching a joined-id string means the callback only runs on actual attention
+// transitions, and the watcher's initial value doubles as the "already flagged
+// at page load" seed.
+const flaggedSessionIds = computed(() =>
+  sortedSessions.value
+    .filter((s) => s.needs_attention)
+    .map((s) => s.id)
+    .sort()
+    .join(","),
+);
+
+watch(flaggedSessionIds, (current, previous) => {
+  if (
+    !desktopAlertsEnabled.value ||
+    typeof Notification === "undefined" ||
+    Notification.permission !== "granted"
+  ) {
     return;
   }
 
-  const result = await Notification.requestPermission();
-  if (result === "granted") {
-    desktopAlertsEnabled.value = true;
-    localStorage.setItem(DESKTOP_ALERTS_KEY, "true");
+  const previouslyFlagged = new Set(previous ? previous.split(",") : []);
+  for (const id of current ? current.split(",") : []) {
+    if (previouslyFlagged.has(id)) continue;
+    new Notification("Claude is waiting", {
+      body: sessions.value.get(id)?.cwd ?? "Claude Code session needs your attention",
+      tag: id,
+    });
   }
-}
-
-// Watch for new attention transitions and fire a browser Notification for
-// each session that flipped to needs_attention since the last tick.
-watch(
-  () =>
-    sortedSessions.value.map((s) => ({
-      id: s.id,
-      needs: s.needs_attention,
-      cwd: s.cwd,
-    })),
-  (current) => {
-    const currentFlagged = new Set<string>();
-    for (const s of current) {
-      if (s.needs) currentFlagged.add(s.id);
-    }
-
-    if (
-      desktopAlertsEnabled.value &&
-      typeof Notification !== "undefined" &&
-      Notification.permission === "granted"
-    ) {
-      for (const s of current) {
-        if (s.needs && !previouslyFlagged.has(s.id)) {
-          new Notification("Claude is waiting", {
-            body: s.cwd ?? "Claude Code session needs your attention",
-            tag: s.id,
-          });
-        }
-      }
-    }
-
-    previouslyFlagged.clear();
-    for (const id of currentFlagged) previouslyFlagged.add(id);
-  },
-  { deep: true },
-);
+});
 
 const sessionCount = computed(() => sortedSessions.value.length);
 const activeSessionCount = computed(

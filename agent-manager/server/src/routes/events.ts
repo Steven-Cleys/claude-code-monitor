@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { sql } from "../db/connection";
+import { clampQueryInt } from "./query";
 
 const router = new Hono();
 
 router.get("/", async (c) => {
   const sinceParam = c.req.query("since");
-  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 100, 1), 2000);
+  const limit = clampQueryInt(c.req.query("limit"), 100, 1, 2000);
   const since = sinceParam
     ? new Date(sinceParam)
     : new Date(Date.now() - 4 * 60 * 60 * 1000);
@@ -14,7 +15,8 @@ router.get("/", async (c) => {
   }
 
   const events = await sql`
-    SELECT e.id, e.session_id, e.event_type, e.tool_name, e.tool_input, e.tool_response, e.created_at
+    SELECT e.id, e.session_id, e.event_type, e.tool_name, e.tool_input, e.tool_response,
+           e.payload->>'agent_id' as agent_id, e.created_at
     FROM events e
     WHERE e.created_at > ${since}
     ORDER BY e.created_at DESC

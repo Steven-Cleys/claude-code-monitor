@@ -1,16 +1,19 @@
 import { Hono } from "hono";
-import { getActiveSessions } from "../services/session-tracker";
+import {
+  getActiveSessions,
+  clearSessionAttention,
+  broadcastAttentionChanged,
+} from "../services/session-tracker";
 import { extractSubagents } from "../services/subagent-enricher";
 import { sql } from "../db/connection";
-import { clearSessionAttention } from "../services/session-tracker";
-
-type BroadcastFn = (topic: string, data: unknown) => void;
+import { clampQueryInt } from "./query";
+import type { BroadcastFn } from "../types/broadcast";
 
 export function createSessionsRouter(broadcast: BroadcastFn) {
   const router = new Hono();
 
   router.get("/", async (c) => {
-    const hours = Math.min(Math.max(Number(c.req.query("hours")) || 4, 0), 168);
+    const hours = clampQueryInt(c.req.query("hours"), 4, 0, 168);
     const sessions = await getActiveSessions(hours);
 
     const enriched = await Promise.all(
@@ -25,9 +28,10 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
 
   router.get("/:id/events", async (c) => {
     const sessionId = c.req.param("id");
-    const limit = Math.min(Math.max(Number(c.req.query("limit")) || 100, 1), 1000);
+    const limit = clampQueryInt(c.req.query("limit"), 100, 1, 1000);
     const events = await sql`
-      SELECT id, event_type, tool_name, tool_input, tool_response, created_at
+      SELECT id, event_type, tool_name, tool_input, tool_response,
+             payload->>'agent_id' as agent_id, created_at
       FROM events
       WHERE session_id = ${sessionId}
       ORDER BY created_at DESC
@@ -40,14 +44,7 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
     const sessionId = c.req.param("id");
     const result = await clearSessionAttention(sessionId);
     if (result.changed) {
-      broadcast("sessions", {
-        type: "session_attention_changed",
-        data: {
-          id: sessionId,
-          needs_attention: false,
-          attention_since: null,
-        },
-      });
+      broadcastAttentionChanged(broadcast, sessionId, false, null);
     }
     return c.json({ changed: result.changed });
   });

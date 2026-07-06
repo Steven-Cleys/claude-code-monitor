@@ -1,4 +1,5 @@
 import { sql } from "../db/connection";
+import type { SubagentMetadataSummary } from "../types/transcript";
 
 interface Subagent {
   name: string;
@@ -12,63 +13,56 @@ interface Subagent {
   permission_mode: string | null;
   last_message: string | null;
   run_in_background: boolean;
-  metadata?: {
-    model: string | null;
-    total_input_tokens: number;
-    total_output_tokens: number;
-    cache_read_tokens: number;
-    cache_creation_tokens: number;
-    tool_call_count: number;
-  } | null;
+  metadata?: SubagentMetadataSummary | null;
 }
 
 export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
-  // Use SubagentStart as primary source (always fires, even if PreToolUse was missed)
-  const starts = await sql`
-    SELECT
-      payload->>'agent_id' as agent_id,
-      payload->>'agent_type' as agent_type,
-      created_at as dispatched_at
-    FROM events
-    WHERE session_id = ${sessionId}
-      AND event_type = 'SubagentStart'
-    ORDER BY created_at ASC
-  `;
-
-  // Get PreToolUse Agent events for names/descriptions (may be incomplete if server was down)
-  const dispatches = await sql`
-    SELECT
-      payload->'tool_input'->>'name' as name,
-      payload->'tool_input'->>'description' as description,
-      payload->'tool_input'->>'subagent_type' as subagent_type,
-      COALESCE((payload->'tool_input'->>'run_in_background')::boolean, false) as run_in_background,
-      created_at as dispatched_at
-    FROM events
-    WHERE session_id = ${sessionId}
-      AND event_type = 'PreToolUse'
-      AND tool_name = 'Agent'
-    ORDER BY created_at ASC
-  `;
-
-  const stops = await sql`
-    SELECT
-      payload->>'agent_id' as agent_id,
-      payload->>'agent_type' as agent_type,
-      payload->>'permission_mode' as permission_mode,
-      LEFT(payload->>'last_assistant_message', 2000) as last_message,
-      created_at as completed_at
-    FROM events
-    WHERE session_id = ${sessionId}
-      AND event_type = 'SubagentStop'
-    ORDER BY created_at ASC
-  `;
-
-  const metadataRows = await sql`
-    SELECT agent_id, model, total_input_tokens, total_output_tokens,
-           cache_read_tokens, cache_creation_tokens, tool_call_count
-    FROM subagent_metadata
-    WHERE session_id = ${sessionId}
-  `;
+  // The four sources are independent — query them concurrently.
+  const [starts, dispatches, stops, metadataRows] = await Promise.all([
+    // Use SubagentStart as primary source (always fires, even if PreToolUse was missed)
+    sql`
+      SELECT
+        payload->>'agent_id' as agent_id,
+        payload->>'agent_type' as agent_type,
+        created_at as dispatched_at
+      FROM events
+      WHERE session_id = ${sessionId}
+        AND event_type = 'SubagentStart'
+      ORDER BY created_at ASC
+    `,
+    // Get PreToolUse Agent events for names/descriptions (may be incomplete if server was down)
+    sql`
+      SELECT
+        tool_input->>'name' as name,
+        tool_input->>'description' as description,
+        tool_input->>'subagent_type' as subagent_type,
+        COALESCE((tool_input->>'run_in_background')::boolean, false) as run_in_background,
+        created_at as dispatched_at
+      FROM events
+      WHERE session_id = ${sessionId}
+        AND event_type = 'PreToolUse'
+        AND tool_name = 'Agent'
+      ORDER BY created_at ASC
+    `,
+    sql`
+      SELECT
+        payload->>'agent_id' as agent_id,
+        payload->>'agent_type' as agent_type,
+        payload->>'permission_mode' as permission_mode,
+        LEFT(payload->>'last_assistant_message', 2000) as last_message,
+        created_at as completed_at
+      FROM events
+      WHERE session_id = ${sessionId}
+        AND event_type = 'SubagentStop'
+      ORDER BY created_at ASC
+    `,
+    sql`
+      SELECT agent_id, model, total_input_tokens, total_output_tokens,
+             cache_read_tokens, cache_creation_tokens, tool_call_count
+      FROM subagent_metadata
+      WHERE session_id = ${sessionId}
+    `,
+  ]);
   return buildSubagents({ starts, dispatches, stops, metadataRows });
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { TimelineEvent as TEvent } from "../types/events";
-import { formatTime, shortId, eventIcon, toolDetail } from "../utils/format";
+import { formatTime, shortId, eventIcon, eventTypeColor, eventAccentBorder, toolDetail } from "../utils/format";
 import { getSessionColor } from "../composables/useSessionColors";
 
 defineProps<{
@@ -11,38 +11,6 @@ defineProps<{
 const emit = defineEmits<{
   toggleDetail: [];
 }>();
-
-function eventTypeColor(eventType: string): string {
-  switch (eventType) {
-    case "PreToolUse": return "text-cyan-glow";
-    case "PostToolUse": return "text-signal-green";
-    case "PostToolUseFailure":
-    case "StopFailure":
-    case "PermissionDenied": return "text-signal-red";
-    case "SessionStart": return "text-amber-glow";
-    case "SessionEnd":
-    case "Stop": return "text-ghost-light";
-    case "Notification": return "text-purple-400";
-    case "PermissionRequest": return "text-purple-400";
-    case "PreCompact":
-    case "PostCompact": return "text-amber-glow";
-    case "TaskCreated":
-    case "TaskCompleted": return "text-cyan-glow";
-    case "TeammateIdle": return "text-yellow-400";
-    default: return "text-ghost-light";
-  }
-}
-
-function eventAccentBorder(eventType: string): string {
-  switch (eventType) {
-    case "PreToolUse": return "border-l-cyan-glow/40";
-    case "PostToolUse": return "border-l-signal-green/40";
-    case "PostToolUseFailure": return "border-l-signal-red/40";
-    case "SessionStart": return "border-l-amber-glow/40";
-    case "Notification": return "border-l-purple-400/40";
-    default: return "border-l-ink-border";
-  }
-}
 </script>
 
 <template>

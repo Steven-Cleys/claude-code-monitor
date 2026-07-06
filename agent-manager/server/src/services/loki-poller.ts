@@ -1,5 +1,6 @@
 import { sql } from "../db/connection";
 import { LOKI_POLL_INTERVAL_MS, LOKI_QUERY } from "../constants";
+import type { BroadcastFn } from "../types/broadcast";
 
 const LOKI_URL = process.env.LOKI_URL ?? "http://localhost:3100";
 
@@ -33,29 +34,30 @@ async function queryLoki(logql: string, sinceMs = 60_000): Promise<LokiStream[]>
   return body.data?.result ?? [];
 }
 
-type BroadcastFn = (topic: string, data: unknown) => void;
-
 export function startLokiPoller(broadcast: BroadcastFn, intervalMs = LOKI_POLL_INTERVAL_MS) {
   const timer = setInterval(async () => {
     try {
       const streams = await queryLoki(LOKI_QUERY);
 
+      // Streams are unique label combos, so the same (session_id, model) pair
+      // repeats across streams — dedupe before hitting the DB.
+      const models = new Map<string, string>();
       for (const stream of streams) {
-        const sessionId = stream.stream.session_id;
-        const model = stream.stream.model;
+        const { session_id, model } = stream.stream;
+        if (session_id && model) models.set(session_id, model);
+      }
 
-        if (sessionId && model) {
-          const [updated] = await sql`
-            UPDATE sessions SET model = ${model}
-            WHERE id = ${sessionId} AND (model IS NULL OR model != ${model})
-            RETURNING id
-          `;
-          if (updated) {
-            broadcast("sessions", {
-              type: "session_enriched",
-              data: { id: sessionId, model },
-            });
-          }
+      for (const [sessionId, model] of models) {
+        const [updated] = await sql`
+          UPDATE sessions SET model = ${model}
+          WHERE id = ${sessionId} AND (model IS NULL OR model != ${model})
+          RETURNING id
+        `;
+        if (updated) {
+          broadcast("sessions", {
+            type: "session_enriched",
+            data: { id: sessionId, model },
+          });
         }
       }
     } catch (err) {

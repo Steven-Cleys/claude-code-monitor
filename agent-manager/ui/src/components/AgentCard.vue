@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Session, Subagent } from "../types/events";
-import { shortId, timeSince, formatTokenCount, formatCost } from "../utils/format";
+import { shortId, timeSince, formatTokenCount, formatCost, modelTier } from "../utils/format";
 import { calculateCost } from "../utils/pricing";
 import { getSessionColor } from "../composables/useSessionColors";
 import SubagentTree from "./SubagentTree.vue";
@@ -28,14 +28,6 @@ function statusClass(status: string): string {
 
 function statusLabel(status: string): string {
   return status.toUpperCase();
-}
-
-function modelShort(model: string | null): string {
-  if (!model) return "unknown";
-  if (model.includes("opus")) return "opus";
-  if (model.includes("sonnet")) return "sonnet";
-  if (model.includes("haiku")) return "haiku";
-  return model.split("/").pop()?.slice(0, 16) ?? model;
 }
 
 function cwdShort(cwd: string | null): string {
@@ -104,7 +96,7 @@ async function dismissAttention() {
     <!-- Model + time row -->
     <div class="flex items-center justify-between mb-1.5">
       <span class="chip bg-ink-surface/80 text-cyan-glow border border-ink-border">
-        {{ modelShort(session.model) }}
+        {{ modelTier(session.model) }}
       </span>
       <span class="text-[0.6rem] text-ghost">{{ timeSince(session.last_seen) }}</span>
     </div>

@@ -22,10 +22,9 @@ export interface TimelineEvent {
   tool_input: Record<string, unknown> | null;
   tool_response: Record<string, unknown> | null;
   created_at: string;
-  // Forwarded from the server broadcast on SubagentStart/SubagentStop so the
-  // UI can wire a subagent row to its real agent_id (it is NOT in tool_input
-  // for those lifecycle events).
-  agent_id?: string;
+  // Top-level payload field on SubagentStart/SubagentStop (NOT in tool_input);
+  // selected as its own column in every event query, null for other events.
+  agent_id?: string | null;
 }
 
 export interface Subagent {
@@ -69,8 +68,6 @@ export interface TranscriptLine {
     };
   };
   timestamp: string;
-  agentId?: string;
-  slug?: string;
 }
 
 export interface ContentBlock {
@@ -84,6 +81,10 @@ export interface ContentBlock {
   tool_use_id?: string;
   is_error?: boolean;
 }
+
+export type InspectTarget =
+  | { kind: "subagent"; subagent: Subagent }
+  | { kind: "session"; session: Session };
 
 export type WsMessage =
   | { type: "new_event"; data: TimelineEvent }

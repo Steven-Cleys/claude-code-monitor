@@ -1,8 +1,12 @@
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import type { Session, Subagent, SubagentMetadata, TimelineEvent, WsMessage } from "../types/events";
 import { calculateCost } from "../utils/pricing";
 
-export function useAgents(messages: { value: WsMessage[] }) {
+// Keep the in-memory event list bounded — matches the fetch limit, so a
+// long-lived tab doesn't grow it (and every computed over it) forever.
+const MAX_EVENTS = 2000;
+
+export function useAgents() {
   const sessions = ref<Map<string, Session>>(new Map());
   const events = ref<TimelineEvent[]>([]);
   const selectedSessionId = ref<string | null>(null);
@@ -85,6 +89,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
       }
       case "new_event": {
         events.value.unshift(msg.data);
+        if (events.value.length > MAX_EVENTS) events.value.length = MAX_EVENTS;
         const session = sessions.value.get(msg.data.session_id);
         if (session) {
           session.last_seen = msg.data.created_at;
@@ -199,15 +204,6 @@ export function useAgents(messages: { value: WsMessage[] }) {
     }
   }
 
-  watch(
-    () => messages.value.length,
-    (newLen, oldLen) => {
-      for (let i = oldLen ?? 0; i < newLen; i++) {
-        processMessage(messages.value[i]);
-      }
-    },
-  );
-
   // F1: Total cost across all sessions
   const totalCost = computed(() => {
     let sum = 0;
@@ -225,49 +221,38 @@ export function useAgents(messages: { value: WsMessage[] }) {
     return count;
   });
 
+  function matchesSearch(e: TimelineEvent, q: string): boolean {
+    if (e.tool_name?.toLowerCase().includes(q)) return true;
+    if (e.event_type.toLowerCase().includes(q)) return true;
+    if (e.tool_input) {
+      for (const v of Object.values(e.tool_input)) {
+        if (typeof v === "string" && v.toLowerCase().includes(q)) return true;
+      }
+    }
+    return false;
+  }
+
+  // Single pass with all predicates hoisted — this recomputes on every
+  // arriving event and every search keystroke.
   const filteredEvents = computed(() => {
-    let result = events.value;
+    const sessionId = selectedSessionId.value;
+    const sub = activeSubagentFilter.value;
+    const subStart = sub ? new Date(sub.dispatchedAt).getTime() : 0;
+    const subEnd = sub?.completedAt ? new Date(sub.completedAt).getTime() : Date.now();
+    const types = activeEventTypes.value;
+    const q = searchQuery.value.trim().toLowerCase();
 
-    // Session filter
-    if (selectedSessionId.value) {
-      result = result.filter((e) => e.session_id === selectedSessionId.value);
-    }
-
-    // Subagent time-range filter
-    if (activeSubagentFilter.value) {
-      const start = new Date(activeSubagentFilter.value.dispatchedAt).getTime();
-      const end = activeSubagentFilter.value.completedAt
-        ? new Date(activeSubagentFilter.value.completedAt).getTime()
-        : Date.now();
-      result = result.filter((e) => {
-        if (e.session_id !== activeSubagentFilter.value!.sessionId) return false;
+    return events.value.filter((e) => {
+      if (sessionId && e.session_id !== sessionId) return false;
+      if (sub) {
+        if (e.session_id !== sub.sessionId) return false;
         const t = new Date(e.created_at).getTime();
-        return t >= start && t <= end;
-      });
-    }
-
-    // F2: Event type filter
-    if (activeEventTypes.value.size > 0) {
-      result = result.filter((e) => activeEventTypes.value.has(e.event_type));
-    }
-
-    // F2: Text search
-    if (searchQuery.value.trim()) {
-      const q = searchQuery.value.toLowerCase();
-      result = result.filter((e) => {
-        if (e.tool_name?.toLowerCase().includes(q)) return true;
-        if (e.event_type.toLowerCase().includes(q)) return true;
-        if (e.tool_input) {
-          const vals = Object.values(e.tool_input);
-          for (const v of vals) {
-            if (typeof v === "string" && v.toLowerCase().includes(q)) return true;
-          }
-        }
-        return false;
-      });
-    }
-
-    return result;
+        if (t < subStart || t > subEnd) return false;
+      }
+      if (types.size > 0 && !types.has(e.event_type)) return false;
+      if (q && !matchesSearch(e, q)) return false;
+      return true;
+    });
   });
 
   // F2: Known event types across all events
@@ -318,7 +303,7 @@ export function useAgents(messages: { value: WsMessage[] }) {
   return {
     sessions,
     sortedSessions,
-    events,
+    processMessage,
     filteredEvents,
     selectedSessionId,
     hoursFilter,

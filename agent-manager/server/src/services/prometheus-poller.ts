@@ -1,4 +1,5 @@
 import { PROMETHEUS_POLL_INTERVAL_MS, PROMETHEUS_TOKEN_QUERY } from "../constants";
+import type { BroadcastFn } from "../types/broadcast";
 
 const PROMETHEUS_URL = process.env.PROMETHEUS_URL ?? "http://localhost:9090";
 
@@ -20,8 +21,6 @@ async function queryPrometheus(promql: string): Promise<PromResult[]> {
   const body: PromResponse = await response.json();
   return body.data?.result ?? [];
 }
-
-type BroadcastFn = (topic: string, data: unknown) => void;
 
 export function startPrometheusPoller(broadcast: BroadcastFn, intervalMs = PROMETHEUS_POLL_INTERVAL_MS) {
   const timer = setInterval(async () => {

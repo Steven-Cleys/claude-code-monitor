@@ -59,5 +59,3 @@ server = Bun.serve({
 });
 
 console.log(`Agent Manager server running on http://localhost:${server.port}`);
-
-export { app, server, upgradeWebSocket };

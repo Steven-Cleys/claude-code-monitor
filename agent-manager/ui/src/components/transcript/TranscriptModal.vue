@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import type { Session, Subagent } from "../../types/events";
+import type { InspectTarget } from "../../types/events";
 import { useTranscript } from "../../composables/useTranscript";
 import { shortId } from "../../utils/format";
 import TranscriptHeader from "./TranscriptHeader.vue";
 import TranscriptMessageList from "./TranscriptMessageList.vue";
-
-type InspectTarget =
-  | { kind: "subagent"; subagent: Subagent }
-  | { kind: "session"; session: Session };
 
 const props = defineProps<{
   target: InspectTarget;

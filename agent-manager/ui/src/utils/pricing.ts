@@ -29,7 +29,7 @@ const PRICING_TABLE: { match: string; pricing: ModelPricing }[] = [
 
 const DEFAULT_PRICING: ModelPricing = { inputPerMillion: 3, outputPerMillion: 15, cacheReadPerMillion: 0.3 };
 
-export function getPricing(model: string | null | undefined): ModelPricing {
+function getPricing(model: string | null | undefined): ModelPricing {
   if (!model) return DEFAULT_PRICING;
   const lower = model.toLowerCase();
   for (const entry of PRICING_TABLE) {

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { TranscriptLine, ContentBlock } from "../../types/events";
-import UserMessage from "./UserMessage.vue";
-import AssistantMessage from "./AssistantMessage.vue";
+import ChatMessage from "./ChatMessage.vue";
 import ToolCallBlock from "./ToolCallBlock.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
 import ProgressEvent from "./ProgressEvent.vue";
@@ -51,8 +50,9 @@ const progressText = computed(() => {
 
 <template>
   <!-- User prompt -->
-  <UserMessage
+  <ChatMessage
     v-if="isUserPrompt"
+    role="user"
     :content="textContent"
     :timestamp="msg.timestamp"
   />
@@ -62,8 +62,9 @@ const progressText = computed(() => {
 
   <!-- Assistant message -->
   <template v-else-if="msg.type === 'assistant'">
-    <AssistantMessage
+    <ChatMessage
       v-if="textContent.trim()"
+      role="assistant"
       :content="textContent"
       :timestamp="msg.timestamp"
     />

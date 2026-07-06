@@ -14,12 +14,11 @@ const emit = defineEmits<{
 }>();
 
 const container = ref<HTMLElement | null>(null);
-const autoScroll = ref(true);
 
 watch(
   () => props.events.length,
   async () => {
-    if (autoScroll.value && container.value) {
+    if (container.value) {
       await nextTick();
       container.value.scrollTop = 0;
     }

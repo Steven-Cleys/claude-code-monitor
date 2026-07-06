@@ -9,9 +9,6 @@ export interface TranscriptLine {
     usage?: TokenUsage;
   };
   timestamp: string;
-  agentId?: string;
-  slug?: string;
-  sessionId?: string;
   uuid?: string;
 }
 
@@ -46,6 +43,18 @@ export interface SubagentMetadata {
   transcript_path: string | null;
   extracted_at: string;
 }
+
+// The per-agent slice of SubagentMetadata that rides on sidebar rows and the
+// subagent_metadata_updated broadcast (ids/paths travel separately).
+export type SubagentMetadataSummary = Pick<
+  SubagentMetadata,
+  | "model"
+  | "total_input_tokens"
+  | "total_output_tokens"
+  | "cache_read_tokens"
+  | "cache_creation_tokens"
+  | "tool_call_count"
+>;
 
 export interface TranscriptResponse {
   messages: TranscriptLine[];

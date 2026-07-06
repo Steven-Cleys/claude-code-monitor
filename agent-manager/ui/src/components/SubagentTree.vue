@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { Subagent } from "../types/events";
+import { modelTier } from "../utils/format";
 
 defineProps<{
   subagents: Subagent[];
@@ -23,21 +24,11 @@ function statusDotClass(status: string): string {
 function statusLabel(status: string): string {
   return status === "running" ? "RUNNING" : "DONE";
 }
-
-// Map a full model id (e.g. claude-haiku-4-5-20251001) to a short tier label.
-// Falls back to the second hyphen-separated segment so future model families
-// don't silently get mislabeled as "haiku".
-function modelTier(model: string | null | undefined): string {
-  if (!model) return "?";
-  if (model.includes("opus")) return "opus";
-  if (model.includes("sonnet")) return "sonnet";
-  if (model.includes("haiku")) return "haiku";
-  return model.split("-").slice(1, 3).join("-") || model;
-}
 </script>
 
 <template>
-  <div v-if="subagents.length > 0" class="mt-2 pt-2 border-t border-ink-border/60">
+  <!-- Parent (AgentCard) already guards on subagents.length -->
+  <div class="mt-2 pt-2 border-t border-ink-border/60">
     <!-- Header with toggle -->
     <button
       class="flex items-center gap-1.5 w-full text-left mb-1.5 group"

@@ -1,7 +1,6 @@
 import { sql } from "../db/connection";
 import { IDLE_TIMEOUT_MS, SESSION_TRACKER_INTERVAL_MS } from "../constants";
-
-type BroadcastFn = (topic: string, data: unknown) => void;
+import type { BroadcastFn } from "../types/broadcast";
 
 export function startSessionTracker(broadcast: BroadcastFn, intervalMs = SESSION_TRACKER_INTERVAL_MS) {
   const timer = setInterval(async () => {
@@ -24,13 +23,6 @@ export function startSessionTracker(broadcast: BroadcastFn, intervalMs = SESSION
   }, intervalMs);
 
   return () => clearInterval(timer);
-}
-
-export async function markSessionEnded(sessionId: string) {
-  await sql`
-    UPDATE sessions SET status = 'ended'
-    WHERE id = ${sessionId}
-  `;
 }
 
 /**
@@ -66,6 +58,24 @@ export async function clearSessionAttention(sessionId: string) {
     RETURNING id
   `;
   return { changed: Boolean(row) };
+}
+
+// Single place that knows the shape of the session_attention_changed message —
+// it used to be hand-assembled at three call sites that could drift apart.
+export function broadcastAttentionChanged(
+  broadcast: BroadcastFn,
+  sessionId: string,
+  needsAttention: boolean,
+  attentionSince: string | null,
+) {
+  broadcast("sessions", {
+    type: "session_attention_changed",
+    data: {
+      id: sessionId,
+      needs_attention: needsAttention,
+      attention_since: attentionSince,
+    },
+  });
 }
 
 export async function getActiveSessions(sinceHours = 4) {

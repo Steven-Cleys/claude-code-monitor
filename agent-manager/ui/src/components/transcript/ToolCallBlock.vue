@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import type { ContentBlock } from "../../types/events";
+import { toolInputSummary } from "../../utils/format";
 
 const props = defineProps<{
   block: ContentBlock;
@@ -14,16 +15,8 @@ const MAX_OUTPUT_LINES = 20;
 
 const summary = computed(() => {
   if (!props.block.input) return "";
-  const input = props.block.input as Record<string, unknown>;
-  if (input.file_path) return `— ${input.file_path}`;
-  if (input.command) return `— ${String(input.command).slice(0, 80)}`;
-  if (input.pattern) return `— "${input.pattern}"`;
-  if (input.query) return `— "${String(input.query).slice(0, 60)}"`;
-  if (input.prompt) return `— ${String(input.prompt).slice(0, 60)}...`;
-  if (input.description) return `— ${String(input.description).slice(0, 60)}`;
-  const firstVal = Object.values(input)[0];
-  if (typeof firstVal === "string") return `— ${firstVal.slice(0, 60)}`;
-  return "";
+  const s = toolInputSummary(props.block.input as Record<string, unknown>);
+  return s ? `— ${s}` : "";
 });
 
 const resultLines = computed(() => {

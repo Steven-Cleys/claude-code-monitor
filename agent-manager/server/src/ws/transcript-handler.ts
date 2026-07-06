@@ -1,7 +1,6 @@
 import type { UpgradeWebSocket } from "hono/bun";
 import { startWatching } from "../services/transcript-watcher";
-
-type BroadcastFn = (topic: string, data: unknown) => void;
+import type { BroadcastFn } from "../types/broadcast";
 
 export function createTranscriptWebSocketRoute(
   upgradeWebSocket: UpgradeWebSocket,
