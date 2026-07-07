@@ -91,7 +91,7 @@ function syntaxHighlight(obj: unknown): string {
   color: #a78bfa;
 }
 .json-viewer :deep(.json-null) {
-  color: #4a5580;
+  color: #7b87b0;
 }
 .json-viewer :deep(.json-num) {
   color: #f0a030;
