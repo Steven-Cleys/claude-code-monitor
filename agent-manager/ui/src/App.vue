@@ -34,7 +34,7 @@ const {
   clearSubagentFilter,
 } = useAgents();
 
-const { connected } = useWebSocket(processMessage);
+const { connected } = useWebSocket(processMessage, refresh);
 
 const sidebarCollapsed = ref(false);
 

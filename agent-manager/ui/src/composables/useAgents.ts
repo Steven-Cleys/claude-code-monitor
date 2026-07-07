@@ -63,16 +63,27 @@ export function useAgents() {
     activeSubagentFilter.value = null;
   }
 
+  // Guard against out-of-order responses: switching the hours filter fires a
+  // new request while the previous one is in flight, and the SLOWER response
+  // must not overwrite the newer range's data.
+  let sessionsFetchSeq = 0;
+  let eventsFetchSeq = 0;
+
   async function fetchSessions() {
+    const seq = ++sessionsFetchSeq;
     const res = await fetch(`/api/sessions?hours=${hoursFilter.value}`);
     const data: Session[] = await res.json();
+    if (seq !== sessionsFetchSeq) return;
     sessions.value = new Map(data.map((s) => [s.id, { ...s, event_count: Number(s.event_count) || 0 }]));
   }
 
   async function fetchEvents() {
+    const seq = ++eventsFetchSeq;
     const since = new Date(Date.now() - hoursFilter.value * 60 * 60 * 1000).toISOString();
     const res = await fetch(`/api/events?since=${since}&limit=2000`);
-    events.value = await res.json();
+    const data = await res.json();
+    if (seq !== eventsFetchSeq) return;
+    events.value = data;
   }
 
   function processMessage(msg: WsMessage) {

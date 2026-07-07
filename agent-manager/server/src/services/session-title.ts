@@ -1,7 +1,6 @@
 import { sql } from "../db/connection";
 import {
-  readTranscriptFile,
-  extractSessionTitle,
+  extractSessionTitleFromFile,
   resolveSessionTranscriptPath,
 } from "./transcript-reader";
 import type { BroadcastFn } from "../types/broadcast";
@@ -22,8 +21,7 @@ export async function refreshSessionTitle(
   inFlight.add(sessionId);
 
   try {
-    const messages = await readTranscriptFile(resolveSessionTranscriptPath(sessionId, cwd));
-    const title = extractSessionTitle(messages);
+    const title = await extractSessionTitleFromFile(resolveSessionTranscriptPath(sessionId, cwd));
     if (!title) return;
 
     const [row] = await sql`

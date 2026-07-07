@@ -70,22 +70,28 @@ export function extractMetadata(
   };
 }
 
-export function extractSessionTitle(messages: TranscriptLine[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.type === "ai-title" && msg.aiTitle) return msg.aiTitle;
+// The title lives in "ai-title" records that Claude Code re-emits as the topic
+// evolves — only the LAST one matters. Scan lines from the end with a cheap
+// substring pre-filter so a multi-MB transcript doesn't get fully JSON.parsed
+// on every turn boundary.
+export async function extractSessionTitleFromFile(filePath: string): Promise<string | null> {
+  if (!existsSync(filePath)) return null;
+  const content = await Bun.file(filePath).text();
+  const lines = content.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].includes("ai-title")) continue;
+    const parsed = parseTranscriptLine(lines[i]);
+    if (parsed?.type === "ai-title" && parsed.aiTitle) return parsed.aiTitle;
   }
   return null;
 }
 
-// Claude Code's on-disk project hash turns both `/` and `_` into `-`, and
-// keeps the leading slash as a leading dash (e.g. `/Users/a/ai_tools/foo`
-// → `-Users-a-ai-tools-foo`). The prior implementation stripped the leading
-// slash and left underscores alone, which produced a wrong path whenever
-// the cwd contained an underscore or was used without an explicit
-// `agent_transcript_path` payload.
+// Claude Code's on-disk project hash maps EVERY non-alphanumeric character to
+// `-` (slashes, underscores, dots, spaces, ...), keeping the leading slash as
+// a leading dash: `/Users/a/ai_tools/my.app` → `-Users-a-ai-tools-my-app`,
+// `/Users/a/proj/.hidden` → `-Users-a-proj--hidden`.
 function cwdToProjectHash(cwd: string): string {
-  return cwd.replace(/[/_]/g, "-");
+  return cwd.replace(/[^a-zA-Z0-9]/g, "-");
 }
 
 export function resolveTranscriptPath(agentId: string, sessionId: string, cwd: string): string {

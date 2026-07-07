@@ -5,14 +5,17 @@
 
 AGENT_MANAGER_URL="${AGENT_MANAGER_URL:-http://localhost:3001}"
 
-# Fire-and-forget: background the POST so the hook returns immediately
-# instead of blocking Claude Code on network round-trip (~50ms per tool call).
 payload=$(cat)
+
+# Fire-and-forget: background the POST and detach ALL stdio on the group —
+# Claude Code waits for EOF on the hook's stdout pipe, so an fd left open in
+# the subshell would block the hook for up to --max-time seconds. The payload
+# is fed via stdin (--data-binary @-) because a multi-MB tool_response as a
+# curl argv element exceeds ARG_MAX and silently drops the event.
 (
-  curl -sf --max-time 3 -X POST "${AGENT_MANAGER_URL}/api/hooks" \
+  printf '%s' "$payload" | curl -sf --max-time 3 -X POST "${AGENT_MANAGER_URL}/api/hooks" \
     -H 'Content-Type: application/json' \
-    -d "$payload" \
-    >/dev/null 2>&1 || true
-) &
+    --data-binary @- || true
+) >/dev/null 2>&1 </dev/null &
 
 exit 0

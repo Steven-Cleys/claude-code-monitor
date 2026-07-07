@@ -1,5 +1,5 @@
 import { sql } from "../db/connection";
-import { SESSION_END_EVENTS } from "../constants";
+import { SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
 
 interface HookEvent {
   session_id: string;
@@ -19,15 +19,25 @@ export async function upsertSession(event: HookEvent) {
   // actually stopped — don't let it bump last_seen or it pollutes time-based filters.
   const isCleanupEvent = event.hook_event_name === "SessionEnd";
   const isEndEvent = (SESSION_END_EVENTS as readonly string[]).includes(event.hook_event_name);
+  const isTurnEnd = (TURN_END_EVENTS as readonly string[]).includes(event.hook_event_name);
+  const isSessionStart = event.hook_event_name === "SessionStart";
 
   const [row] = await sql`
     INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
-    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${isEndEvent ? "ended" : "active"}, NOW(), NOW())
+    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${isEndEvent ? "ended" : isTurnEnd ? "idle" : "active"}, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = ${isCleanupEvent ? sql`sessions.last_seen` : sql`NOW()`},
-      -- Never resurrect an 'ended' session: late replays (e.g. a deferred
-      -- SubagentStop) used to flip status back to 'active' here.
-      status = CASE WHEN sessions.status = 'ended' OR ${isEndEvent} THEN 'ended' ELSE 'active' END,
+      -- Status model: SessionEnd is terminal, SessionStart resurrects a resumed
+      -- session, Stop/StopFailure mark a turn boundary (idle), anything else on
+      -- a live session means it's active. Late replays (e.g. a deferred
+      -- SubagentStop) must NOT resurrect an ended session.
+      status = CASE
+        WHEN ${isEndEvent} THEN 'ended'
+        WHEN ${isSessionStart} THEN 'active'
+        WHEN sessions.status = 'ended' THEN 'ended'
+        WHEN ${isTurnEnd} THEN 'idle'
+        ELSE 'active'
+      END,
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
       permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
       model = COALESCE(EXCLUDED.model, sessions.model)

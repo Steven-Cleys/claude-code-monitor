@@ -6,7 +6,7 @@ import {
   clearSessionAttention,
   broadcastAttentionChanged,
 } from "../services/session-tracker";
-import { SESSION_END_EVENTS } from "../constants";
+import { SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
 import { stopWatching, isWatching } from "../services/transcript-watcher";
 import { hostPathToContainerPath } from "../services/transcript-reader";
 import { persistSubagentMetadata } from "../services/subagent-metadata";
@@ -86,11 +86,19 @@ export function createHooksRouter(broadcast: BroadcastFn) {
       }
     }
 
-    // Status flips to 'ended' inside the upsert itself — no extra UPDATE here.
-    if (SESSION_END_EVENTS.includes(payload.hook_event_name)) {
+    // Status transitions happen inside the upsert; broadcast the row's actual
+    // post-upsert status at lifecycle boundaries (Stop → idle, SessionEnd →
+    // ended, SessionStart → active on resume). Non-lifecycle events flip idle
+    // sessions back to active in the upsert too, but the UI already infers
+    // that from new_event, so no extra broadcast is needed there.
+    const isLifecycleEvent =
+      (SESSION_END_EVENTS as readonly string[]).includes(payload.hook_event_name) ||
+      (TURN_END_EVENTS as readonly string[]).includes(payload.hook_event_name) ||
+      payload.hook_event_name === "SessionStart";
+    if (isLifecycleEvent && !session.isNew) {
       broadcast("sessions", {
         type: "session_status_changed",
-        data: { id: payload.session_id, status: "ended" },
+        data: { id: payload.session_id, status: session.session.status },
       });
     }
 

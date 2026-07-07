@@ -36,6 +36,7 @@ HOOK_WRAPPER="{\"hooks\": [${HOOK_ENTRY}]}"
 EVENTS=(
   "SessionStart"
   "SessionEnd"
+  "UserPromptSubmit"
   "PreToolUse"
   "PostToolUse"
   "PostToolUseFailure"

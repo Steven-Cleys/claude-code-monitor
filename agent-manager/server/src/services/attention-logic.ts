@@ -1,15 +1,18 @@
-import { SESSION_END_EVENTS } from "../constants";
+import { SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
 
 const ATTENTION_TRIGGER_TYPES = new Set<string>([
   "permission_prompt",
   "idle_prompt",
 ]);
 
-// Terminal events clear attention (composed from the shared list so a new
-// terminal event type can't end a session while its badge stays lit), plus
-// tool activity, which proves the session is no longer blocked on a prompt.
+// Terminal + turn-end events clear attention (composed from the shared lists
+// so a new terminal event type can't end a session while its badge stays lit),
+// plus tool activity and a fresh user prompt — both prove the session is no
+// longer blocked on a prompt.
 const ATTENTION_CLEAR_EVENTS = new Set<string>([
   ...SESSION_END_EVENTS,
+  ...TURN_END_EVENTS,
+  "UserPromptSubmit",
   "PreToolUse",
   "PostToolUse",
 ]);

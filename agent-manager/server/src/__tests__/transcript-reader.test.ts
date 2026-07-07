@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { parseTranscriptLine, extractMetadata, extractSessionTitle } from "../services/transcript-reader";
+import { parseTranscriptLine, extractMetadata, extractSessionTitleFromFile, resolveSessionTranscriptPath } from "../services/transcript-reader";
 import type { TranscriptLine } from "../types/transcript";
 
 describe("parseTranscriptLine", () => {
@@ -132,32 +132,65 @@ describe("extractMetadata", () => {
   });
 });
 
-describe("extractSessionTitle", () => {
-  test("returns the last ai-title when multiple are present", () => {
-    const messages: TranscriptLine[] = [
+describe("resolveSessionTranscriptPath", () => {
+  test("maps every non-alphanumeric character to a dash, like Claude Code does", () => {
+    expect(resolveSessionTranscriptPath("sess-1", "/Users/a/ai_tools/my.app"))
+      .toBe("/claude-projects/-Users-a-ai-tools-my-app/sess-1.jsonl");
+  });
+
+  test("hidden directories produce a double dash", () => {
+    expect(resolveSessionTranscriptPath("sess-1", "/Users/a/code/proj/.superpowers-sdd"))
+      .toBe("/claude-projects/-Users-a-code-proj--superpowers-sdd/sess-1.jsonl");
+  });
+
+  test("spaces become dashes", () => {
+    expect(resolveSessionTranscriptPath("sess-1", "/Users/a/My Projects/demo"))
+      .toBe("/claude-projects/-Users-a-My-Projects-demo/sess-1.jsonl");
+  });
+});
+
+describe("extractSessionTitleFromFile", () => {
+  const dir = `${import.meta.dir}/__fixtures__`;
+
+  async function writeFixture(name: string, lines: unknown[]): Promise<string> {
+    const path = `${dir}/${name}`;
+    await Bun.write(path, lines.map((l) => JSON.stringify(l)).join("\n"));
+    return path;
+  }
+
+  test("returns the last ai-title when multiple are present", async () => {
+    const path = await writeFixture("title-multi.jsonl", [
       { type: "ai-title", aiTitle: "Early topic", timestamp: "2026-07-06T10:00:00.000Z" },
       { type: "user", message: { role: "user", content: "next question" }, timestamp: "2026-07-06T10:01:00.000Z" },
       { type: "ai-title", aiTitle: "Review remaining project ideas", timestamp: "2026-07-06T10:02:00.000Z" },
-    ];
-
-    expect(extractSessionTitle(messages)).toBe("Review remaining project ideas");
+    ]);
+    expect(await extractSessionTitleFromFile(path)).toBe("Review remaining project ideas");
   });
 
-  test("returns null when no ai-title lines exist", () => {
-    const messages: TranscriptLine[] = [
+  test("returns null when no ai-title lines exist", async () => {
+    const path = await writeFixture("title-none.jsonl", [
       { type: "user", message: { role: "user", content: "Hello" }, timestamp: "2026-07-06T10:00:00.000Z" },
-      { type: "assistant", message: { role: "assistant", content: "Hi" }, timestamp: "2026-07-06T10:00:01.000Z" },
-    ];
-
-    expect(extractSessionTitle(messages)).toBeNull();
+    ]);
+    expect(await extractSessionTitleFromFile(path)).toBeNull();
   });
 
-  test("ignores ai-title lines with an empty title", () => {
-    const messages: TranscriptLine[] = [
+  test("ignores ai-title lines with an empty title", async () => {
+    const path = await writeFixture("title-empty.jsonl", [
       { type: "ai-title", aiTitle: "Real title", timestamp: "2026-07-06T10:00:00.000Z" },
       { type: "ai-title", aiTitle: "", timestamp: "2026-07-06T10:01:00.000Z" },
-    ];
+    ]);
+    expect(await extractSessionTitleFromFile(path)).toBe("Real title");
+  });
 
-    expect(extractSessionTitle(messages)).toBe("Real title");
+  test("returns null for a missing file", async () => {
+    expect(await extractSessionTitleFromFile(`${dir}/does-not-exist.jsonl`)).toBeNull();
+  });
+
+  test("skips lines that mention ai-title but are not ai-title records", async () => {
+    const path = await writeFixture("title-decoy.jsonl", [
+      { type: "ai-title", aiTitle: "Real title", timestamp: "2026-07-06T10:00:00.000Z" },
+      { type: "user", message: { role: "user", content: 'discussing the ai-title feature' }, timestamp: "2026-07-06T10:01:00.000Z" },
+    ]);
+    expect(await extractSessionTitleFromFile(path)).toBe("Real title");
   });
 });
