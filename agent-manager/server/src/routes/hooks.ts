@@ -10,6 +10,7 @@ import { SESSION_END_EVENTS } from "../constants";
 import { stopWatching, isWatching } from "../services/transcript-watcher";
 import { hostPathToContainerPath } from "../services/transcript-reader";
 import { persistSubagentMetadata } from "../services/subagent-metadata";
+import { refreshSessionTitle } from "../services/session-title";
 import {
   shouldTriggerAttention,
   shouldClearAttention,
@@ -91,6 +92,18 @@ export function createHooksRouter(broadcast: BroadcastFn) {
         type: "session_status_changed",
         data: { id: payload.session_id, status: "ended" },
       });
+    }
+
+    // Refresh the session's AI-generated title at turn boundaries — the
+    // "ai-title" record lives in the session transcript, not in any hook
+    // payload. Fire-and-forget: the hook response must not wait on file I/O.
+    if (
+      (payload.hook_event_name === "UserPromptSubmit" || payload.hook_event_name === "Stop") &&
+      payload.cwd
+    ) {
+      refreshSessionTitle(payload.session_id, payload.cwd, broadcast).catch((err) =>
+        console.error("Failed to refresh session title:", err),
+      );
     }
 
     // Stop transcript watcher and eagerly extract metadata when a subagent

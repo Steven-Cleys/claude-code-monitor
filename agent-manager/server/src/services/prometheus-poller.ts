@@ -8,6 +8,27 @@ interface PromResult {
   value: [number, string];
 }
 
+// The OTEL metric labels token types in camelCase; the UI prices them by the
+// snake_case keys it has always used, so normalize here.
+const TOKEN_TYPE_KEYS: Record<string, string> = {
+  input: "input",
+  output: "output",
+  cacheRead: "cache_read",
+  cacheCreation: "cache_creation",
+};
+
+export function groupTokensBySession(results: PromResult[]): Record<string, Record<string, number>> {
+  const sessionTokens: Record<string, Record<string, number>> = {};
+  for (const result of results) {
+    const sid = result.metric.session_id;
+    const tokenType = TOKEN_TYPE_KEYS[result.metric.type];
+    if (!sid || !tokenType) continue;
+    sessionTokens[sid] ??= {};
+    sessionTokens[sid][tokenType] = parseFloat(result.value[1]);
+  }
+  return sessionTokens;
+}
+
 interface PromResponse {
   status: string;
   data: { result: PromResult[] };
@@ -26,15 +47,7 @@ export function startPrometheusPoller(broadcast: BroadcastFn, intervalMs = PROME
   const timer = setInterval(async () => {
     try {
       const tokenResults = await queryPrometheus(PROMETHEUS_TOKEN_QUERY);
-
-      const sessionTokens: Record<string, Record<string, number>> = {};
-      for (const result of tokenResults) {
-        const sid = result.metric.session_id;
-        const tokenType = result.metric.token_type;
-        if (!sid) continue;
-        sessionTokens[sid] ??= {};
-        sessionTokens[sid][tokenType] = parseFloat(result.value[1]);
-      }
+      const sessionTokens = groupTokensBySession(tokenResults);
 
       for (const [sessionId, tokens] of Object.entries(sessionTokens)) {
         broadcast("sessions", {

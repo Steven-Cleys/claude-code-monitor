@@ -117,6 +117,14 @@ watch(flaggedSessionIds, (current, previous) => {
   }
 });
 
+// Prototype UIs from the ui-variants worktrees, proxied by nginx at /<name>/.
+const uiVariants = ["observatory", "reactor", "codemap", "cyberpunk", "lcars", "medbay"];
+
+function switchUiVariant(e: Event) {
+  const path = (e.target as HTMLSelectElement).value;
+  if (path) window.location.href = path;
+}
+
 const sessionCount = computed(() => sortedSessions.value.length);
 const activeSessionCount = computed(
   () => sortedSessions.value.filter((s) => s.status === "active").length,
@@ -209,6 +217,16 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
         </div>
 
         <div class="h-4 w-px bg-ink-border"></div>
+
+        <select
+          aria-label="Switch UI variant"
+          title="Switch to a prototype UI"
+          class="bg-ink-mid border border-ink-border rounded px-2.5 py-1 text-xs text-ghost-light focus:border-amber-muted focus:outline-none transition-colors cursor-pointer capitalize"
+          @change="switchUiVariant"
+        >
+          <option value="">Mission Control</option>
+          <option v-for="v in uiVariants" :key="v" :value="`/${v}/`">{{ v }}</option>
+        </select>
 
         <select
           v-model="hoursFilter"

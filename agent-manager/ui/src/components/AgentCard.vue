@@ -93,6 +93,15 @@ async function dismissAttention() {
       </button>
     </div>
 
+    <!-- AI-generated session title ("what is this agent doing") -->
+    <div
+      v-if="session.title"
+      class="text-xs text-ghost-light font-medium truncate mb-1.5"
+      :title="session.title"
+    >
+      {{ session.title }}
+    </div>
+
     <!-- Model + time row -->
     <div class="flex items-center justify-between mb-1.5">
       <span class="chip bg-ink-surface/80 text-cyan-glow border border-ink-border">

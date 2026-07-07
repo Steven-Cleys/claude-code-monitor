@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { parseTranscriptLine, extractMetadata } from "../services/transcript-reader";
+import { parseTranscriptLine, extractMetadata, extractSessionTitle } from "../services/transcript-reader";
 import type { TranscriptLine } from "../types/transcript";
 
 describe("parseTranscriptLine", () => {
@@ -129,5 +129,35 @@ describe("extractMetadata", () => {
     expect(meta.model).toBeNull();
     expect(meta.total_input_tokens).toBe(0);
     expect(meta.tool_call_count).toBe(0);
+  });
+});
+
+describe("extractSessionTitle", () => {
+  test("returns the last ai-title when multiple are present", () => {
+    const messages: TranscriptLine[] = [
+      { type: "ai-title", aiTitle: "Early topic", timestamp: "2026-07-06T10:00:00.000Z" },
+      { type: "user", message: { role: "user", content: "next question" }, timestamp: "2026-07-06T10:01:00.000Z" },
+      { type: "ai-title", aiTitle: "Review remaining project ideas", timestamp: "2026-07-06T10:02:00.000Z" },
+    ];
+
+    expect(extractSessionTitle(messages)).toBe("Review remaining project ideas");
+  });
+
+  test("returns null when no ai-title lines exist", () => {
+    const messages: TranscriptLine[] = [
+      { type: "user", message: { role: "user", content: "Hello" }, timestamp: "2026-07-06T10:00:00.000Z" },
+      { type: "assistant", message: { role: "assistant", content: "Hi" }, timestamp: "2026-07-06T10:00:01.000Z" },
+    ];
+
+    expect(extractSessionTitle(messages)).toBeNull();
+  });
+
+  test("ignores ai-title lines with an empty title", () => {
+    const messages: TranscriptLine[] = [
+      { type: "ai-title", aiTitle: "Real title", timestamp: "2026-07-06T10:00:00.000Z" },
+      { type: "ai-title", aiTitle: "", timestamp: "2026-07-06T10:01:00.000Z" },
+    ];
+
+    expect(extractSessionTitle(messages)).toBe("Real title");
   });
 });

@@ -70,6 +70,14 @@ export function extractMetadata(
   };
 }
 
+export function extractSessionTitle(messages: TranscriptLine[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.type === "ai-title" && msg.aiTitle) return msg.aiTitle;
+  }
+  return null;
+}
+
 // Claude Code's on-disk project hash turns both `/` and `_` into `-`, and
 // keeps the leading slash as a leading dash (e.g. `/Users/a/ai_tools/foo`
 // → `-Users-a-ai-tools-foo`). The prior implementation stripped the leading

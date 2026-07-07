@@ -1,5 +1,8 @@
 export interface TranscriptLine {
-  type: "user" | "assistant" | "progress";
+  type: "user" | "assistant" | "progress" | "ai-title";
+  // Only on "ai-title" records — Claude Code's generated session title,
+  // re-emitted as the conversation topic evolves (last one wins).
+  aiTitle?: string;
   message?: {
     role?: "user" | "assistant";
     content?: string | ContentBlock[];

@@ -1,5 +1,6 @@
 export interface Session {
   id: string;
+  title?: string | null;
   model: string | null;
   cwd: string | null;
   permission_mode: string | null;
@@ -93,6 +94,7 @@ export type WsMessage =
   | { type: "session_enriched"; data: { id: string; model?: string } }
   | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } }
   | { type: "session_attention_changed"; data: { id: string; needs_attention: boolean; attention_since: string | null } }
+  | { type: "session_title_changed"; data: { id: string; title: string } }
   | { type: "subagent_metadata_updated"; data: { session_id: string; agent_id: string; metadata: SubagentMetadata } }
   | { type: "transcript_line"; agentId: string; data: TranscriptLine }
   | { type: "transcript_complete"; agentId: string };

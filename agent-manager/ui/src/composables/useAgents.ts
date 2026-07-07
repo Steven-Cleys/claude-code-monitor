@@ -181,6 +181,11 @@ export function useAgents() {
         if (session) session.tokens = msg.data.tokens;
         break;
       }
+      case "session_title_changed": {
+        const session = sessions.value.get(msg.data.id);
+        if (session) session.title = msg.data.title;
+        break;
+      }
       case "session_attention_changed": {
         const session = sessions.value.get(msg.data.id);
         if (session) {
