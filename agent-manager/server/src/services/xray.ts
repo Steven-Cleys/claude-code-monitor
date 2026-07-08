@@ -1,5 +1,9 @@
 import { sql } from "../db/connection";
-import { readTranscriptFile, resolveSessionTranscriptPath } from "./transcript-reader";
+import {
+  readTranscriptFile,
+  resolveSessionTranscriptPath,
+  hostPathToContainerPath,
+} from "./transcript-reader";
 import { extractSubagents } from "./subagent-enricher";
 import type { TranscriptLine } from "../types/transcript";
 
@@ -293,9 +297,27 @@ export async function buildXray(sessionId: string) {
     .filter((r) => r.event_type === "PreToolUse" && r.tool_name)
     .map((r) => r.tool_name as string);
 
+  // Hook payloads carry the transcript path directly — prefer it over deriving
+  // from session.cwd, which drifts when the user cd's away from the project dir.
+  const [pathRow] = await sql`
+    SELECT payload->>'transcript_path' as transcript_path
+    FROM events
+    WHERE session_id = ${sessionId}
+      AND payload->>'agent_id' IS NULL
+      AND payload->>'transcript_path' IS NOT NULL
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+
+  let filePath = pathRow?.transcript_path
+    ? hostPathToContainerPath(pathRow.transcript_path as string)
+    : null;
+  if (!filePath && session.cwd) {
+    filePath = resolveSessionTranscriptPath(sessionId, session.cwd as string);
+  }
+
   let context: ContextTimeline = { points: [], compactions: [] };
-  if (session.cwd) {
-    const filePath = resolveSessionTranscriptPath(sessionId, session.cwd as string);
+  if (filePath) {
     const messages = await readTranscriptFile(filePath);
     context = buildContextTimeline(messages);
   }
