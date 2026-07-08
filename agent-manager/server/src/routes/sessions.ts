@@ -5,6 +5,7 @@ import {
   broadcastAttentionChanged,
 } from "../services/session-tracker";
 import { extractSubagents } from "../services/subagent-enricher";
+import { buildXray } from "../services/xray";
 import { sql } from "../db/connection";
 import { clampQueryInt } from "./query";
 import type { BroadcastFn } from "../types/broadcast";
@@ -38,6 +39,12 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
       LIMIT ${limit}
     `;
     return c.json(events);
+  });
+
+  router.get("/:id/xray", async (c) => {
+    const result = await buildXray(c.req.param("id"));
+    if (!result) return c.json({ error: "Session not found" }, 404);
+    return c.json(result);
   });
 
   router.post("/:id/dismiss-attention", async (c) => {
