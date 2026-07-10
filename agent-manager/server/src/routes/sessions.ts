@@ -5,6 +5,7 @@ import {
   broadcastAttentionChanged,
 } from "../services/session-tracker";
 import { extractSubagents } from "../services/subagent-enricher";
+import { readSessionContext } from "../services/context-poller";
 import { buildXray } from "../services/xray";
 import { buildTurnLedger } from "../services/turns";
 import { sql } from "../db/connection";
@@ -22,6 +23,7 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
       sessions.map(async (session) => ({
         ...session,
         subagents: await extractSubagents(session.id),
+        context: await readSessionContext(session.id, session.cwd as string | null),
       })),
     );
 
