@@ -273,6 +273,29 @@ export function buildFriction(rows: XrayEventRow[]): Friction {
   };
 }
 
+// Hook payloads carry the transcript path directly — prefer it over deriving
+// from session.cwd, which drifts when the user cd's away from the project dir.
+export async function resolveTranscriptFileForSession(
+  sessionId: string,
+  cwd: string | null,
+): Promise<string | null> {
+  const [pathRow] = await sql`
+    SELECT payload->>'transcript_path' as transcript_path
+    FROM events
+    WHERE session_id = ${sessionId}
+      AND payload->>'agent_id' IS NULL
+      AND payload->>'transcript_path' IS NOT NULL
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+
+  const filePath = pathRow?.transcript_path
+    ? hostPathToContainerPath(pathRow.transcript_path as string)
+    : null;
+  if (filePath) return filePath;
+  return cwd ? resolveSessionTranscriptPath(sessionId, cwd) : null;
+}
+
 export async function buildXray(sessionId: string) {
   const [session] = await sql`
     SELECT id, title, model, project, cwd, status, first_seen, last_seen
@@ -297,24 +320,10 @@ export async function buildXray(sessionId: string) {
     .filter((r) => r.event_type === "PreToolUse" && r.tool_name)
     .map((r) => r.tool_name as string);
 
-  // Hook payloads carry the transcript path directly — prefer it over deriving
-  // from session.cwd, which drifts when the user cd's away from the project dir.
-  const [pathRow] = await sql`
-    SELECT payload->>'transcript_path' as transcript_path
-    FROM events
-    WHERE session_id = ${sessionId}
-      AND payload->>'agent_id' IS NULL
-      AND payload->>'transcript_path' IS NOT NULL
-    ORDER BY id DESC
-    LIMIT 1
-  `;
-
-  let filePath = pathRow?.transcript_path
-    ? hostPathToContainerPath(pathRow.transcript_path as string)
-    : null;
-  if (!filePath && session.cwd) {
-    filePath = resolveSessionTranscriptPath(sessionId, session.cwd as string);
-  }
+  const filePath = await resolveTranscriptFileForSession(
+    sessionId,
+    (session.cwd as string) ?? null,
+  );
 
   let context: ContextTimeline = { points: [], compactions: [] };
   if (filePath) {

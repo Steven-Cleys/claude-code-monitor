@@ -6,6 +6,7 @@ import {
 } from "../services/session-tracker";
 import { extractSubagents } from "../services/subagent-enricher";
 import { buildXray } from "../services/xray";
+import { buildTurnLedger } from "../services/turns";
 import { sql } from "../db/connection";
 import { clampQueryInt } from "./query";
 import type { BroadcastFn } from "../types/broadcast";
@@ -39,6 +40,12 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
       LIMIT ${limit}
     `;
     return c.json(events);
+  });
+
+  router.get("/:id/turns", async (c) => {
+    const result = await buildTurnLedger(c.req.param("id"));
+    if (!result) return c.json({ error: "Session not found" }, 404);
+    return c.json(result);
   });
 
   router.get("/:id/xray", async (c) => {
