@@ -126,7 +126,7 @@ watch(flaggedSessionIds, (current, previous) => {
 });
 
 // Prototype UIs from the ui-variants worktrees, proxied by nginx at /<name>/.
-const uiVariants = ["observatory", "reactor", "codemap", "cyberpunk", "lcars", "medbay"];
+const uiVariants = ["observatory", "reactor", "codemap", "cyberpunk", "lcars", "medbay", "xray"];
 
 function switchUiVariant(e: Event) {
   const path = (e.target as HTMLSelectElement).value;
