@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useWebSocket } from "./composables/useWebSocket";
 import { useAgents } from "./composables/useAgents";
+import { useTurns } from "./composables/useTurns";
 import AgentList from "./components/AgentList.vue";
 import TranscriptModal from "./components/transcript/TranscriptModal.vue";
 import type { InspectTarget, Session, Subagent } from "./types/events";
@@ -35,6 +36,13 @@ const {
 } = useAgents();
 
 const { connected } = useWebSocket(processMessage, refresh);
+
+const { turns } = useTurns(selectedSessionId, filteredEvents);
+const selectedSessionModel = computed(() =>
+  selectedSessionId.value
+    ? sessions.value.get(selectedSessionId.value)?.model ?? null
+    : null,
+);
 
 const sidebarCollapsed = ref(false);
 
@@ -313,8 +321,11 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
         </div>
         <div v-show="!eventStreamCollapsed" class="flex-1 min-h-0">
           <Timeline
+            :key="selectedSessionId ?? 'all'"
             :events="filteredEvents"
             :expanded-event-id="expandedEventId"
+            :turns="selectedSessionId ? turns : undefined"
+            :session-model="selectedSessionModel"
             @toggle-detail="toggleEventDetail"
           />
         </div>

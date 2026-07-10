@@ -71,6 +71,15 @@ export function formatTokenCount(n: number): string {
   return String(n);
 }
 
+export function formatDuration(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return seconds % 60 ? `${minutes}m ${seconds % 60}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
 export function formatCost(dollars: number): string {
   if (dollars < 0.01) return "<$0.01";
   return `$${dollars.toFixed(2)}`;

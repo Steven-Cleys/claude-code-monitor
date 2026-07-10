@@ -83,6 +83,23 @@ export interface ContentBlock {
   is_error?: boolean;
 }
 
+export interface Turn {
+  index: number;
+  prompt: string;
+  start: string;
+  end: string;
+  duration_ms: number;
+  tool_calls: number;
+  failures: number;
+  files_touched: string[];
+  tokens: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_creation: number;
+  };
+}
+
 export type InspectTarget =
   | { kind: "subagent"; subagent: Subagent }
   | { kind: "session"; session: Session };
