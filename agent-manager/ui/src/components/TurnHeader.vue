@@ -14,9 +14,17 @@ const emit = defineEmits<{
   toggle: [];
 }>();
 
-const cost = computed(() => calculateCost(props.turn.tokens, props.model));
+// Subagent tokens are costed at the session model's rate — close enough for
+// attribution even when a subagent ran on a different tier.
+const cost = computed(
+  () =>
+    calculateCost(props.turn.tokens, props.model) +
+    calculateCost(props.turn.agents.tokens, props.model),
+);
 const hasTokens = computed(() =>
-  Object.values(props.turn.tokens).some((v) => v > 0),
+  [...Object.values(props.turn.tokens), ...Object.values(props.turn.agents.tokens)].some(
+    (v) => v > 0,
+  ),
 );
 </script>
 
@@ -48,6 +56,13 @@ const hasTokens = computed(() =>
       </span>
       <span v-if="turn.failures > 0" class="chip bg-ink-mid text-signal-red" title="Tool failures">
         {{ turn.failures }} failed
+      </span>
+      <span
+        v-if="turn.agents.count > 0"
+        class="chip bg-ink-mid text-purple-400"
+        :title="`${turn.agents.count} subagent(s), ${turn.agents.tool_calls} tool calls — tokens included in turn cost`"
+      >
+        {{ turn.agents.count }} agents
       </span>
       <span v-if="hasTokens" class="chip bg-ink-mid text-ghost-light" title="Output tokens">
         {{ formatTokenCount(turn.tokens.output) }} out

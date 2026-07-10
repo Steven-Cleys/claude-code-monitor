@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { buildTurns, type TurnEventRow } from "../services/turns";
+import { buildTurns, type TurnEventRow, type TurnSubagent } from "../services/turns";
 import type { ContextPoint } from "../services/xray";
 
 const ts = (sec: number) => new Date(Date.UTC(2026, 6, 8, 10, 0, sec)).toISOString();
@@ -150,5 +150,48 @@ describe("buildTurns", () => {
 
   test("empty input yields no turns", () => {
     expect(buildTurns([], [])).toEqual([]);
+  });
+
+  test("attributes subagents to the turn that dispatched them", () => {
+    const rows = [
+      prompt(0, "fan out"),
+      eventRow({ event_type: "Stop", created_at: ts(30) }),
+      prompt(40, "quiet ask"),
+    ];
+    const subagents: TurnSubagent[] = [
+      {
+        dispatched_at: ts(5),
+        tool_calls: 12,
+        tokens: { input: 300, output: 4000, cache_read: 9000, cache_creation: 100 },
+      },
+      {
+        dispatched_at: ts(10),
+        tool_calls: 3,
+        tokens: { input: 50, output: 600, cache_read: 0, cache_creation: 0 },
+      },
+    ];
+
+    const turns = buildTurns(rows, [], subagents);
+
+    expect(turns[0]!.agents).toEqual({
+      count: 2,
+      tool_calls: 15,
+      tokens: { input: 350, output: 4600, cache_read: 9000, cache_creation: 100 },
+    });
+    expect(turns[1]!.agents.count).toBe(0);
+  });
+
+  test("ignores subagents dispatched before the first prompt", () => {
+    const subagents: TurnSubagent[] = [
+      {
+        dispatched_at: ts(0),
+        tool_calls: 5,
+        tokens: { input: 10, output: 20, cache_read: 0, cache_creation: 0 },
+      },
+    ];
+
+    const turns = buildTurns([prompt(10, "late ask")], [], subagents);
+
+    expect(turns[0]!.agents.count).toBe(0);
   });
 });

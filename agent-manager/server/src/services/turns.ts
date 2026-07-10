@@ -1,4 +1,5 @@
 import { sql } from "../db/connection";
+import { extractSubagents } from "./subagent-enricher";
 import { readTranscriptFile } from "./transcript-reader";
 import {
   buildContextTimeline,
@@ -21,6 +22,18 @@ export interface TurnTokens {
   cache_creation: number;
 }
 
+export interface TurnSubagent {
+  dispatched_at: string;
+  tool_calls: number;
+  tokens: TurnTokens;
+}
+
+export interface TurnAgents {
+  count: number;
+  tool_calls: number;
+  tokens: TurnTokens;
+}
+
 export interface Turn {
   index: number;
   prompt: string;
@@ -31,11 +44,16 @@ export interface Turn {
   failures: number;
   files_touched: string[];
   tokens: TurnTokens;
+  agents: TurnAgents;
 }
 
 const WRITE_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
 
-export function buildTurns(rows: TurnEventRow[], points: ContextPoint[]): Turn[] {
+export function buildTurns(
+  rows: TurnEventRow[],
+  points: ContextPoint[],
+  subagents: TurnSubagent[] = [],
+): Turn[] {
   const iso = (v: string | Date) => new Date(v).toISOString();
   const turns: Turn[] = [];
   let current: Turn | null = null;
@@ -54,6 +72,11 @@ export function buildTurns(rows: TurnEventRow[], points: ContextPoint[]): Turn[]
         failures: 0,
         files_touched: [],
         tokens: { input: 0, output: 0, cache_read: 0, cache_creation: 0 },
+        agents: {
+          count: 0,
+          tool_calls: 0,
+          tokens: { input: 0, output: 0, cache_read: 0, cache_creation: 0 },
+        },
       };
       turns.push(current);
       filesTouched.set(current, new Set());
@@ -84,6 +107,18 @@ export function buildTurns(rows: TurnEventRow[], points: ContextPoint[]): Turn[]
     turn.tokens.output += point.output;
     turn.tokens.cache_read += point.cache_read;
     turn.tokens.cache_creation += point.cache_creation;
+  }
+
+  for (const sub of subagents) {
+    const dispatched = iso(sub.dispatched_at);
+    const turn = turns.findLast((t) => t.start <= dispatched);
+    if (!turn) continue;
+    turn.agents.count++;
+    turn.agents.tool_calls += sub.tool_calls;
+    turn.agents.tokens.input += sub.tokens.input;
+    turn.agents.tokens.output += sub.tokens.output;
+    turn.agents.tokens.cache_read += sub.tokens.cache_read;
+    turn.agents.tokens.cache_creation += sub.tokens.cache_creation;
   }
 
   return turns;
@@ -118,5 +153,16 @@ export async function buildTurnLedger(sessionId: string) {
     points = buildContextTimeline(await readTranscriptFile(filePath)).points;
   }
 
-  return { session_id: sessionId, turns: buildTurns(rows, points) };
+  const subagents: TurnSubagent[] = (await extractSubagents(sessionId)).map((sub) => ({
+    dispatched_at: sub.dispatched_at,
+    tool_calls: sub.metadata?.tool_call_count ?? 0,
+    tokens: {
+      input: sub.metadata?.total_input_tokens ?? 0,
+      output: sub.metadata?.total_output_tokens ?? 0,
+      cache_read: sub.metadata?.cache_read_tokens ?? 0,
+      cache_creation: sub.metadata?.cache_creation_tokens ?? 0,
+    },
+  }));
+
+  return { session_id: sessionId, turns: buildTurns(rows, points, subagents) };
 }

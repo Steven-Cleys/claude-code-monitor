@@ -98,6 +98,16 @@ export interface Turn {
     cache_read: number;
     cache_creation: number;
   };
+  agents: {
+    count: number;
+    tool_calls: number;
+    tokens: {
+      input: number;
+      output: number;
+      cache_read: number;
+      cache_creation: number;
+    };
+  };
 }
 
 export type InspectTarget =
