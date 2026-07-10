@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { Session, Subagent } from "../types/events";
 import { shortId, timeSince, formatTokenCount, formatCost, modelTier } from "../utils/format";
 import { calculateCost } from "../utils/pricing";
@@ -35,6 +36,20 @@ function cwdShort(cwd: string | null): string {
   const parts = cwd.split("/");
   return parts.slice(-2).join("/");
 }
+
+const CONTEXT_WINDOW_TOKENS = 200_000;
+
+const contextPct = computed(() => {
+  if (!props.session.context) return null;
+  return Math.min(100, Math.round((props.session.context.tokens / CONTEXT_WINDOW_TOKENS) * 100));
+});
+
+const contextBarClass = computed(() => {
+  const pct = contextPct.value ?? 0;
+  if (pct >= 85) return "bg-signal-red";
+  if (pct >= 60) return "bg-amber-glow";
+  return "bg-signal-green";
+});
 
 async function dismissAttention() {
   try {
@@ -108,6 +123,24 @@ async function dismissAttention() {
         {{ modelTier(session.model) }}
       </span>
       <span class="text-[0.6rem] text-ghost">{{ timeSince(session.last_seen) }}</span>
+    </div>
+
+    <!-- Context window fill -->
+    <div
+      v-if="contextPct !== null"
+      class="flex items-center gap-2 mb-1.5"
+      :title="`Context: ${formatTokenCount(session.context!.tokens)} / ${formatTokenCount(CONTEXT_WINDOW_TOKENS)} tokens`"
+    >
+      <div class="flex-1 h-1 rounded-full bg-ink-surface overflow-hidden">
+        <div
+          class="h-full rounded-full transition-all duration-500"
+          :class="contextBarClass"
+          :style="{ width: `${contextPct}%` }"
+        ></div>
+      </div>
+      <span class="text-[0.6rem] tabular-nums shrink-0" :class="contextPct >= 85 ? 'text-signal-red' : 'text-ghost'">
+        CTX {{ contextPct }}%
+      </span>
     </div>
 
     <!-- Working directory -->

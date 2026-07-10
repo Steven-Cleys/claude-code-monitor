@@ -13,6 +13,12 @@ export interface Session {
   last_tool?: string | null;
   tokens?: Record<string, number>;
   subagents?: Subagent[];
+  context?: SessionContext | null;
+}
+
+export interface SessionContext {
+  tokens: number;
+  ts: string;
 }
 
 export interface TimelineEvent {
@@ -120,6 +126,7 @@ export type WsMessage =
   | { type: "session_status_changed"; data: { id: string; status: Session["status"]; last_seen?: string } }
   | { type: "session_enriched"; data: { id: string; model?: string } }
   | { type: "session_metrics"; data: { id: string; tokens: Record<string, number> } }
+  | { type: "session_context"; data: { id: string; context: SessionContext } }
   | { type: "session_attention_changed"; data: { id: string; needs_attention: boolean; attention_since: string | null } }
   | { type: "session_title_changed"; data: { id: string; title: string } }
   | { type: "subagent_metadata_updated"; data: { session_id: string; agent_id: string; metadata: SubagentMetadata } }
