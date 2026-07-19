@@ -9,6 +9,7 @@ import {
 import { SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
 import { stopWatching, isWatching } from "../services/transcript-watcher";
 import { hostPathToContainerPath } from "../services/transcript-reader";
+import { scanSession } from "../services/transcript-scanner";
 import { persistSubagentMetadata } from "../services/subagent-metadata";
 import { refreshSessionTitle } from "../services/session-title";
 import {
@@ -22,6 +23,7 @@ const hookPayloadSchema = z.object({
   hook_event_name: z.string().min(1).max(128),
   cwd: z.string().optional(),
   model: z.string().optional(),
+  transcript_path: z.string().optional(),
   tool_name: z.string().optional(),
   tool_input: z.record(z.string(), z.unknown()).optional(),
   tool_response: z.record(z.string(), z.unknown()).optional(),
@@ -100,6 +102,19 @@ export function createHooksRouter(broadcast: BroadcastFn) {
         type: "session_status_changed",
         data: { id: payload.session_id, status: session.session.status },
       });
+    }
+
+    // Final token/model read at turn and session boundaries — the interval
+    // scanner only covers 'active' sessions, and these events flip the session
+    // to idle/ended, so without this a turn's last tokens would never land.
+    // Fire-and-forget: the hook response must not wait on file I/O.
+    if (isLifecycleEvent && payload.hook_event_name !== "SessionStart" && payload.transcript_path) {
+      const scanPath = hostPathToContainerPath(payload.transcript_path);
+      if (scanPath) {
+        scanSession(payload.session_id, scanPath, broadcast).catch((err) =>
+          console.error("Failed to scan transcript at turn end:", err),
+        );
+      }
     }
 
     // Refresh the session's AI-generated title at turn boundaries — the

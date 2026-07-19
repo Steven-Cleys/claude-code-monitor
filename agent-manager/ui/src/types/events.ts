@@ -14,6 +14,13 @@ export interface Session {
   tokens?: Record<string, number>;
   subagents?: Subagent[];
   context?: SessionContext | null;
+  // Persisted token columns from GET /api/sessions — mapped into `tokens`
+  // on fetch so totals survive page reloads.
+  input_tokens?: number | string;
+  output_tokens?: number | string;
+  cache_read_tokens?: number | string;
+  cache_creation_tokens?: number | string;
+  tokens_updated_at?: string | null;
 }
 
 export interface SessionContext {

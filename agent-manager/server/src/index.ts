@@ -6,9 +6,8 @@ import { runMigrations } from "./db/migrate";
 import { createHooksRouter } from "./routes/hooks";
 import { createWebSocketRoute } from "./ws/handler";
 import { startSessionTracker } from "./services/session-tracker";
-import { startLokiPoller } from "./services/loki-poller";
-import { startPrometheusPoller } from "./services/prometheus-poller";
 import { startContextPoller } from "./services/context-poller";
+import { startTranscriptScanner } from "./services/transcript-scanner";
 import { createSessionsRouter } from "./routes/sessions";
 import { eventsRouter } from "./routes/events";
 import { createTranscriptsRouter } from "./routes/transcripts";
@@ -50,9 +49,8 @@ app.get("/ws/transcript", createTranscriptWebSocketRoute(upgradeWebSocket, broad
 await runMigrations();
 
 startSessionTracker(broadcast);
-startLokiPoller(broadcast);
-startPrometheusPoller(broadcast);
 startContextPoller(broadcast);
+startTranscriptScanner(broadcast);
 
 server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),

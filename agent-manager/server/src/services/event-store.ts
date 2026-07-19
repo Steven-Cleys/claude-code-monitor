@@ -1,5 +1,6 @@
 import { sql } from "../db/connection";
 import { SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
+import { hostPathToContainerPath } from "./transcript-reader";
 
 interface HookEvent {
   session_id: string;
@@ -7,6 +8,7 @@ interface HookEvent {
   cwd: string;
   permission_mode?: string;
   model?: string;
+  transcript_path?: string;
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   tool_response?: Record<string, unknown>;
@@ -21,10 +23,15 @@ export async function upsertSession(event: HookEvent) {
   const isEndEvent = (SESSION_END_EVENTS as readonly string[]).includes(event.hook_event_name);
   const isTurnEnd = (TURN_END_EVENTS as readonly string[]).includes(event.hook_event_name);
   const isSessionStart = event.hook_event_name === "SessionStart";
+  // Stored as the container-visible path so every reader (scanner, xray) can
+  // open it directly; the raw host path stays available in the event payload.
+  const transcriptPath = event.transcript_path
+    ? hostPathToContainerPath(event.transcript_path)
+    : null;
 
   const [row] = await sql`
-    INSERT INTO sessions (id, cwd, permission_mode, model, status, first_seen, last_seen)
-    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${isEndEvent ? "ended" : isTurnEnd ? "idle" : "active"}, NOW(), NOW())
+    INSERT INTO sessions (id, cwd, permission_mode, model, transcript_path, status, first_seen, last_seen)
+    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${transcriptPath}, ${isEndEvent ? "ended" : isTurnEnd ? "idle" : "active"}, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = ${isCleanupEvent ? sql`sessions.last_seen` : sql`NOW()`},
       -- Status model: SessionEnd is terminal, SessionStart resurrects a resumed
@@ -40,7 +47,8 @@ export async function upsertSession(event: HookEvent) {
       END,
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
       permission_mode = COALESCE(EXCLUDED.permission_mode, sessions.permission_mode),
-      model = COALESCE(EXCLUDED.model, sessions.model)
+      model = COALESCE(EXCLUDED.model, sessions.model),
+      transcript_path = COALESCE(EXCLUDED.transcript_path, sessions.transcript_path)
     -- xmax = 0 means the row was inserted (not updated by a concurrent tx)
     RETURNING *, (xmax = 0) AS is_new
   `;

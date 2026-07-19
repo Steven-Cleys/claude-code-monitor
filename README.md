@@ -217,20 +217,21 @@ That's it. Every Claude Code session will now send events to the dashboard.
 Claude Code hooks ──stdin──▶ send-hook.sh ──POST──▶ Bun Server (:3001) ──WebSocket──▶ Vue UI (:3002)
                                                       │
                                                       ├── Postgres (event storage)
-                                                      ├── Loki (model enrichment)
-                                                      └── Prometheus (token metrics)
+                                                      ├── Transcripts (~/.claude/projects, token totals + model)
+                                                      └── Prometheus (context-window fill)
 ```
 
 ### Data Sources
 
-Hooks are the **primary data source** — they provide the real-time event stream and session tracking. OTEL/Loki/Prometheus are **enrichment layers** that add data the hooks don't carry.
+Hooks are the **primary data source** — they provide the real-time event stream and session tracking. Session transcripts on disk are the **enrichment layer** for token totals and model names: authoritative, survives restarts, no OTEL dependency.
 
 | Data | Source | Mechanism |
 |------|--------|-----------|
 | Sessions (id, cwd, permission_mode, status) | Hooks | Upserted on every hook event via `POST /api/hooks` |
 | Events (tool calls, session lifecycle) | Hooks | `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, etc. |
-| Model name | Both | Hooks may include `model` field; Loki poller backfills from OTEL logs (every 15s) |
-| Token counts (input, output, cacheRead, cacheCreation) | Prometheus | Poller queries `claude_code_token_usage_tokens_total` (every 30s) |
+| Model name | Both | Hooks may include `model` field; transcript scanner backfills from the session transcript |
+| Token counts (input, output, cache_read, cache_creation) | Transcripts | Scanner re-reads active sessions' transcripts (every 10s, deduped by message id) + a final read at turn/session end; persisted on `sessions` |
+| Context-window fill | Prometheus | Context poller (every 20s) |
 
 ### Uninstall Hooks
 

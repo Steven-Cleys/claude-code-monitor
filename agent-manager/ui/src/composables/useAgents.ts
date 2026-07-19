@@ -74,7 +74,26 @@ export function useAgents() {
     const res = await fetch(`/api/sessions?hours=${hoursFilter.value}`);
     const data: Session[] = await res.json();
     if (seq !== sessionsFetchSeq) return;
-    sessions.value = new Map(data.map((s) => [s.id, { ...s, event_count: Number(s.event_count) || 0 }]));
+    sessions.value = new Map(
+      data.map((s) => [
+        s.id,
+        {
+          ...s,
+          event_count: Number(s.event_count) || 0,
+          // BIGINT columns arrive as strings; only seed tokens once the
+          // scanner has written them, so sessions without a transcript keep
+          // the "no data" state instead of showing zeros.
+          tokens: s.tokens_updated_at
+            ? {
+                input: Number(s.input_tokens) || 0,
+                output: Number(s.output_tokens) || 0,
+                cache_read: Number(s.cache_read_tokens) || 0,
+                cache_creation: Number(s.cache_creation_tokens) || 0,
+              }
+            : undefined,
+        },
+      ]),
+    );
   }
 
   async function fetchEvents() {
