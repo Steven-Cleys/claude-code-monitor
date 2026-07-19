@@ -19,6 +19,22 @@ export function useAgents() {
   // from persistSubagentMetadata). Keyed by agent_id.
   const pendingMetadata = new Map<string, SubagentMetadata>();
 
+  // Stop-only SubagentStops (no SubagentStart, no matching row) are NOT
+  // surfaced immediately: phantom suggestion-agents look identical to real
+  // anonymous agents at stop time. Real ones leave a transcript, so the
+  // subagent_metadata_updated broadcast that follows is the proof-of-life —
+  // the row is created there, using the buffered stop's timestamps.
+  const pendingStops = new Map<string, { completed_at: string; buffered_at: number }>();
+  const PENDING_STOP_TTL_MS = 5 * 60 * 1000;
+
+  function bufferPendingStop(agentId: string, completedAt: string) {
+    const now = Date.now();
+    for (const [id, stop] of pendingStops) {
+      if (now - stop.buffered_at > PENDING_STOP_TTL_MS) pendingStops.delete(id);
+    }
+    pendingStops.set(agentId, { completed_at: completedAt, buffered_at: now });
+  }
+
   // F2: Search & filter state
   const searchQuery = ref("");
   const activeEventTypes = ref<Set<string>>(new Set());
@@ -123,7 +139,12 @@ export function useAgents() {
         const session = sessions.value.get(msg.data.session_id);
         if (session) {
           session.last_seen = msg.data.created_at;
-          session.status = "active";
+          // Passive events (idle_prompt notifications, phantom SubagentStops)
+          // don't resurrect an idle card — mirrors the server's status CASE.
+          // Lifecycle events get their own session_status_changed broadcast.
+          if (msg.data.event_type !== "Notification" && msg.data.event_type !== "SubagentStop") {
+            session.status = "active";
+          }
           session.last_tool = msg.data.tool_name;
           session.event_count = Number(session.event_count ?? 0) + 1;
 
@@ -145,49 +166,57 @@ export function useAgents() {
             });
           }
 
-          if (msg.data.event_type === "SubagentStop") {
+          // agent_id / agent_type are forwarded at the top-level of the
+          // broadcast for SubagentStart/SubagentStop (NOT inside tool_input,
+          // which is null for lifecycle events).
+          if (msg.data.event_type === "SubagentStart" && msg.data.agent_id) {
             if (!session.subagents) session.subagents = [];
-            const running = session.subagents.find((a) => a.status === "running");
-            if (running) {
-              running.status = "completed";
-              running.completed_at = msg.data.created_at;
-              // agent_id is forwarded at the top-level of the broadcast for
-              // SubagentStart/SubagentStop (NOT inside tool_input, which is
-              // null for lifecycle events).
-              if (msg.data.agent_id) {
-                running.agent_id = msg.data.agent_id;
-                // If metadata arrived before the subagent had its real id,
-                // apply it now.
-                const pending = pendingMetadata.get(msg.data.agent_id);
-                if (pending) {
-                  running.metadata = pending;
-                  pendingMetadata.delete(msg.data.agent_id);
-                }
-              }
-            } else if (msg.data.agent_id) {
-              // Stop-only subagent: anonymous / workflow / background agents fire
-              // only SubagentStop (no PreToolUse/Agent), so no running row was
-              // ever added. Surface it live as a completed row — mirrors the
-              // server's buildSubagents so it shows without needing a refresh.
-              const completed: Subagent = {
+            // Bind the id to the oldest still-unidentified running row —
+            // SubagentStart fires right after its PreToolUse/Agent dispatch,
+            // so dispatch order and start order match.
+            const unbound = session.subagents.find((a) => a.status === "running" && !a.agent_id);
+            if (unbound) {
+              unbound.agent_id = msg.data.agent_id;
+              unbound.agent_type = msg.data.agent_type ?? null;
+            } else {
+              // Start without a dispatch row (background/workflow spawns fire
+              // no PreToolUse/Agent) — surface it as a running row.
+              session.subagents.push({
                 name: msg.data.agent_id.slice(-8),
                 description: "",
                 subagent_type: null,
-                agent_type: null,
+                agent_type: msg.data.agent_type ?? null,
                 agent_id: msg.data.agent_id,
-                status: "completed",
+                status: "running",
                 dispatched_at: msg.data.created_at,
-                completed_at: msg.data.created_at,
+                completed_at: null,
                 permission_mode: null,
                 last_message: null,
                 run_in_background: false,
-              };
+              });
+            }
+          }
+
+          if (msg.data.event_type === "SubagentStop" && msg.data.agent_id) {
+            if (!session.subagents) session.subagents = [];
+            // Match strictly by agent_id (bound at SubagentStart). A blind
+            // "first running row" fallback would complete the WRONG row when
+            // parallel subagents finish out of dispatch order, or let a
+            // phantom stop consume a real running row.
+            const row = session.subagents.find((a) => a.agent_id === msg.data.agent_id);
+            if (row) {
+              row.status = "completed";
+              row.completed_at = msg.data.created_at;
               const pending = pendingMetadata.get(msg.data.agent_id);
               if (pending) {
-                completed.metadata = pending;
+                row.metadata = pending;
                 pendingMetadata.delete(msg.data.agent_id);
               }
-              session.subagents.push(completed);
+            } else {
+              // Stop-only agent — real (workflow/background) or phantom
+              // (suggestion micro-agent). Buffer it; the metadata broadcast
+              // that only real agents produce creates the row.
+              bufferPendingStop(msg.data.agent_id, msg.data.created_at);
             }
           }
         }
@@ -234,6 +263,27 @@ export function useAgents() {
         const subagent = session?.subagents?.find((a) => a.agent_id === msg.data.agent_id);
         if (subagent) {
           subagent.metadata = msg.data.metadata;
+        } else if (session && pendingStops.has(msg.data.agent_id)) {
+          // Buffered stop-only agent: metadata only exists when a transcript
+          // was written, so this is a real agent (not a suggestion phantom) —
+          // surface it now as a completed row.
+          const stop = pendingStops.get(msg.data.agent_id)!;
+          pendingStops.delete(msg.data.agent_id);
+          if (!session.subagents) session.subagents = [];
+          session.subagents.push({
+            name: msg.data.agent_id.slice(-8),
+            description: "",
+            subagent_type: null,
+            agent_type: null,
+            agent_id: msg.data.agent_id,
+            status: "completed",
+            dispatched_at: stop.completed_at,
+            completed_at: stop.completed_at,
+            permission_mode: null,
+            last_message: null,
+            run_in_background: false,
+            metadata: msg.data.metadata,
+          });
         } else {
           // Subagent may not be in UI state yet — stash the metadata and
           // apply it when SubagentStop later sets agent_id.

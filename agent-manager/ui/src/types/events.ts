@@ -31,6 +31,7 @@ export interface SessionContext {
 export interface TimelineEvent {
   id: number;
   session_id: string;
+  agent_type?: string | null;
   event_type: string;
   tool_name: string | null;
   tool_input: Record<string, unknown> | null;

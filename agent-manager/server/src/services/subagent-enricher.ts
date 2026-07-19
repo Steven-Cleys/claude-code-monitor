@@ -181,6 +181,12 @@ export function buildSubagents(rows: {
   const stopOnly: Subagent[] = [];
   for (const stop of stopsByAgentId.values()) {
     if (!stop.agent_id || startedAgentIds.has(stop.agent_id)) continue;
+    // Phantom filter: Claude Code's prompt-suggestion micro-agents fire
+    // stop-only SubagentStop with empty agent_type and a transcript path that
+    // never exists on disk — so no metadata row was ever extracted. Real
+    // anonymous agents (workflow/background) leave a transcript and therefore
+    // metadata. Typed stop-only agents are kept even without metadata.
+    if (!stop.agent_type && !metadataByAgentId.has(stop.agent_id)) continue;
     const shortId = stop.agent_id.slice(-8);
     stopOnly.push({
       name: shortId,

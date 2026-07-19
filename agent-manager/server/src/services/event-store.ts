@@ -1,5 +1,5 @@
 import { sql } from "../db/connection";
-import { SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
+import { PASSIVE_EVENTS, SESSION_END_EVENTS, TURN_END_EVENTS } from "../constants";
 import { hostPathToContainerPath } from "./transcript-reader";
 
 interface HookEvent {
@@ -23,6 +23,7 @@ export async function upsertSession(event: HookEvent) {
   const isEndEvent = (SESSION_END_EVENTS as readonly string[]).includes(event.hook_event_name);
   const isTurnEnd = (TURN_END_EVENTS as readonly string[]).includes(event.hook_event_name);
   const isSessionStart = event.hook_event_name === "SessionStart";
+  const isPassiveEvent = (PASSIVE_EVENTS as readonly string[]).includes(event.hook_event_name);
   // Stored as the container-visible path so every reader (scanner, xray) can
   // open it directly; the raw host path stays available in the event payload.
   const transcriptPath = event.transcript_path
@@ -31,18 +32,21 @@ export async function upsertSession(event: HookEvent) {
 
   const [row] = await sql`
     INSERT INTO sessions (id, cwd, permission_mode, model, transcript_path, status, first_seen, last_seen)
-    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${transcriptPath}, ${isEndEvent ? "ended" : isTurnEnd ? "idle" : "active"}, NOW(), NOW())
+    VALUES (${event.session_id}, ${event.cwd ?? null}, ${event.permission_mode ?? null}, ${model}, ${transcriptPath}, ${isEndEvent ? "ended" : isTurnEnd || isPassiveEvent ? "idle" : "active"}, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
       last_seen = ${isCleanupEvent ? sql`sessions.last_seen` : sql`NOW()`},
       -- Status model: SessionEnd is terminal, SessionStart resurrects a resumed
       -- session, Stop/StopFailure mark a turn boundary (idle), anything else on
       -- a live session means it's active. Late replays (e.g. a deferred
-      -- SubagentStop) must NOT resurrect an ended session.
+      -- SubagentStop) must NOT resurrect an ended session, and passive events
+      -- (idle_prompt notifications, phantom SubagentStops) must NOT flip an
+      -- idle session back to active.
       status = CASE
         WHEN ${isEndEvent} THEN 'ended'
         WHEN ${isSessionStart} THEN 'active'
         WHEN sessions.status = 'ended' THEN 'ended'
         WHEN ${isTurnEnd} THEN 'idle'
+        WHEN ${isPassiveEvent} THEN sessions.status
         ELSE 'active'
       END,
       cwd = COALESCE(EXCLUDED.cwd, sessions.cwd),
@@ -74,7 +78,7 @@ export async function storeEvent(event: HookEvent) {
       ${sql.json(payload)}
     )
     RETURNING id, session_id, event_type, tool_name, tool_input, tool_response,
-              payload->>'agent_id' as agent_id, created_at
+              payload->>'agent_id' as agent_id, payload->>'agent_type' as agent_type, created_at
   `;
 
   return { event: row, session: upsertResult };

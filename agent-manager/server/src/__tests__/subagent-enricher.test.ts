@@ -37,6 +37,45 @@ describe("buildSubagents", () => {
     expect(result[0].metadata?.tool_call_count).toBe(3);
   });
 
+  test("filters phantom stop-only rows (empty agent_type AND no metadata)", () => {
+    const result = buildSubagents({
+      starts: [],
+      dispatches: [],
+      stops: [
+        {
+          agent_id: "a35f347e80541b602",
+          agent_type: "",
+          permission_mode: "bypassPermissions",
+          last_message: "while they're running, also count the Python files",
+          completed_at: "2026-07-19T17:37:12.000Z",
+        },
+      ],
+      metadataRows: [],
+    });
+
+    expect(result).toHaveLength(0);
+  });
+
+  test("keeps a typed stop-only row even without metadata", () => {
+    const result = buildSubagents({
+      starts: [],
+      dispatches: [],
+      stops: [
+        {
+          agent_id: "abc123def456",
+          agent_type: "general-purpose",
+          permission_mode: null,
+          last_message: null,
+          completed_at: "2026-07-19T17:37:12.000Z",
+        },
+      ],
+      metadataRows: [],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].agent_type).toBe("general-purpose");
+  });
+
   test("does not duplicate a subagent that has both a start and a stop", () => {
     const result = buildSubagents({
       starts: [
@@ -84,7 +123,19 @@ describe("buildSubagents", () => {
           completed_at: "2026-07-06T07:00:00.000Z",
         },
       ],
-      metadataRows: [],
+      // Metadata marks the stop-only agent as real (transcript existed) so it
+      // survives the phantom filter.
+      metadataRows: [
+        {
+          agent_id: "stoponly",
+          model: "claude-sonnet-5",
+          total_input_tokens: 1,
+          total_output_tokens: 1,
+          cache_read_tokens: 0,
+          cache_creation_tokens: 0,
+          tool_call_count: 0,
+        },
+      ],
     });
 
     expect(result.map((s) => s.agent_id)).toEqual(["stoponly", "started"]);
