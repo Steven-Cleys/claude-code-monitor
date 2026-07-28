@@ -9,11 +9,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HOOK_SCRIPT="${SCRIPT_DIR}/hooks/send-hook.sh"
+SRC_HOOK="${SCRIPT_DIR}/hooks/send-hook.sh"
+HOOK_DIR="${HOME}/.claude/hooks"
+# The hook is copied out of the repo and registered from ~/.claude. If the repo lives under a
+# TCC-protected folder (~/Documents, ~/Desktop, ~/Downloads), macOS intermittently denies exec
+# there with EPERM, which silently kills all hook telemetry for the affected session.
+HOOK_SCRIPT="${HOOK_DIR}/send-hook.sh"
 SETTINGS_FILE="${HOME}/.claude/settings.json"
 
-if [[ ! -f "$HOOK_SCRIPT" ]]; then
-  echo "Error: Hook script not found at ${HOOK_SCRIPT}"
+if [[ ! -f "$SRC_HOOK" ]]; then
+  echo "Error: Hook script not found at ${SRC_HOOK}"
   exit 1
 fi
 
@@ -27,8 +32,6 @@ if ! command -v jq &> /dev/null; then
   echo "Error: jq is required. Install with: brew install jq"
   exit 1
 fi
-
-chmod +x "$HOOK_SCRIPT"
 
 HOOK_ENTRY="{\"type\": \"command\", \"command\": \"${HOOK_SCRIPT}\", \"timeout\": 5}"
 HOOK_WRAPPER="{\"hooks\": [${HOOK_ENTRY}]}"
@@ -54,14 +57,11 @@ EVENTS=(
   "TeammateIdle"
 )
 
-if [[ "${1:-}" == "--uninstall" ]]; then
-  echo "Removing agent-manager hooks from ${SETTINGS_FILE}..."
-
-  tmp=$(mktemp)
-  cp "$SETTINGS_FILE" "$tmp"
-
+# remove_hook_entries <command> <settings-copy>
+remove_hook_entries() {
+  local cmd="$1" file="$2" event
   for event in "${EVENTS[@]}"; do
-    jq --arg cmd "$HOOK_SCRIPT" --arg event "$event" '
+    jq --arg cmd "$cmd" --arg event "$event" '
       if .hooks[$event] then
         .hooks[$event] |= map(
           .hooks |= map(select(.command != $cmd))
@@ -69,20 +69,36 @@ if [[ "${1:-}" == "--uninstall" ]]; then
         )
         | if .hooks[$event] | length == 0 then del(.hooks[$event]) else . end
       else . end
-    ' "$tmp" > "${tmp}.new" && mv "${tmp}.new" "$tmp"
+    ' "$file" > "${file}.new" && mv "${file}.new" "$file"
   done
+}
+
+if [[ "${1:-}" == "--uninstall" ]]; then
+  echo "Removing agent-manager hooks from ${SETTINGS_FILE}..."
+
+  tmp=$(mktemp)
+  cp "$SETTINGS_FILE" "$tmp"
+
+  remove_hook_entries "$HOOK_SCRIPT" "$tmp"
+  remove_hook_entries "$SRC_HOOK" "$tmp"
 
   cp "$tmp" "$SETTINGS_FILE"
-  rm -f "$tmp"
+  rm -f "$tmp" "$HOOK_SCRIPT"
   echo "Done. Agent-manager hooks removed."
   exit 0
 fi
 
 echo "Installing agent-manager hooks into ${SETTINGS_FILE}..."
-echo "Hook script: ${HOOK_SCRIPT}"
+echo "Hook script: ${HOOK_SCRIPT} (from ${SRC_HOOK})"
+
+mkdir -p "$HOOK_DIR"
+install -m 0755 "$SRC_HOOK" "$HOOK_SCRIPT"
 
 tmp=$(mktemp)
 cp "$SETTINGS_FILE" "$tmp"
+
+# Migrate installs that still register the in-repo path.
+remove_hook_entries "$SRC_HOOK" "$tmp"
 
 for event in "${EVENTS[@]}"; do
   already_installed=$(jq --arg cmd "$HOOK_SCRIPT" --arg event "$event" '
