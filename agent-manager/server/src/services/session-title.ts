@@ -21,7 +21,9 @@ export async function refreshSessionTitle(
   inFlight.add(sessionId);
 
   try {
-    const title = await extractSessionTitleFromFile(resolveSessionTranscriptPath(sessionId, cwd));
+    const filePath = resolveSessionTranscriptPath(sessionId, cwd);
+    if (!filePath) return;
+    const title = await extractSessionTitleFromFile(filePath);
     if (!title) return;
 
     const [row] = await sql`

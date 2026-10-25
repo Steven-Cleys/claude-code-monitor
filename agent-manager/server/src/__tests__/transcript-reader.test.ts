@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { parseTranscriptLine, extractMetadata, extractSessionTitleFromFile, resolveSessionTranscriptPath } from "../services/transcript-reader";
+import { parseTranscriptLine, extractMetadata, extractSessionTitleFromFile, resolveSessionTranscriptPath, resolveTranscriptPath, hostPathToContainerPath } from "../services/transcript-reader";
 import type { TranscriptLine, ContentBlock } from "../types/transcript";
 
 describe("parseTranscriptLine", () => {
@@ -169,6 +169,26 @@ describe("resolveSessionTranscriptPath", () => {
   test("spaces become dashes", () => {
     expect(resolveSessionTranscriptPath("sess-1", "/Users/a/My Projects/demo"))
       .toBe("/claude-projects/-Users-a-My-Projects-demo/sess-1.jsonl");
+  });
+});
+
+describe("path traversal out of the projects dir", () => {
+  test("a session id with .. segments resolves to null", () => {
+    expect(resolveSessionTranscriptPath("../../etc/x", "/a")).toBeNull();
+  });
+
+  test("an agent id with .. segments resolves to null", () => {
+    expect(resolveTranscriptPath("x/../../../../../etc/x", "sess-1", "/a")).toBeNull();
+  });
+
+  test("a hook transcript path with .. segments resolves to null", () => {
+    expect(hostPathToContainerPath("/x/.claude/projects/../../etc/hostname")).toBeNull();
+    expect(hostPathToContainerPath("/claude-projects/../etc/hostname")).toBeNull();
+  });
+
+  test("a regular hook transcript path maps into the projects dir", () => {
+    expect(hostPathToContainerPath("/Users/a/.claude/projects/-Users-a-app/sess-1.jsonl"))
+      .toBe("/claude-projects/-Users-a-app/sess-1.jsonl");
   });
 });
 

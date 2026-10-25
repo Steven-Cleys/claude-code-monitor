@@ -1,4 +1,5 @@
 import { existsSync } from "fs";
+import { resolve } from "path";
 import type { TranscriptLine, SubagentMetadata, ContentBlock, TokenUsage } from "../types/transcript";
 
 const CLAUDE_PROJECTS_DIR = process.env.CLAUDE_PROJECTS_DIR ?? "/claude-projects";
@@ -112,12 +113,19 @@ function cwdToProjectHash(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, "-");
 }
 
-export function resolveTranscriptPath(agentId: string, sessionId: string, cwd: string): string {
-  return `${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}/subagents/agent-${agentId}.jsonl`;
+// Ids and paths come from hook payloads, which anyone on this machine can
+// send, so a `..` segment must not lead out of the projects dir.
+function insideProjectsDir(path: string): string | null {
+  const resolved = resolve(path);
+  return resolved.startsWith(`${CLAUDE_PROJECTS_DIR}/`) ? resolved : null;
 }
 
-export function resolveSessionTranscriptPath(sessionId: string, cwd: string): string {
-  return `${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}.jsonl`;
+export function resolveTranscriptPath(agentId: string, sessionId: string, cwd: string): string | null {
+  return insideProjectsDir(`${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}/subagents/agent-${agentId}.jsonl`);
+}
+
+export function resolveSessionTranscriptPath(sessionId: string, cwd: string): string | null {
+  return insideProjectsDir(`${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}.jsonl`);
 }
 
 // Converts a host path like `/home/user/.claude/projects/<hash>/<id>/...`
@@ -130,5 +138,5 @@ export function hostPathToContainerPath(hostPath: string): string | null {
   if (converted === hostPath && !hostPath.startsWith(`${CLAUDE_PROJECTS_DIR}/`)) {
     return null;
   }
-  return converted;
+  return insideProjectsDir(converted);
 }

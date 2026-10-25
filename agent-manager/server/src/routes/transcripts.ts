@@ -27,6 +27,9 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
     }
 
     const filePath = resolveSessionTranscriptPath(sessionId, session.cwd as string);
+    if (!filePath) {
+      return c.json({ error: "Session id does not map to a transcript path" }, 404);
+    }
     const messages = await readTranscriptFile(filePath);
     const isLive = session.status !== "ended";
 
@@ -98,6 +101,9 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
       sessionId = startEvent.session_id as string;
       filePath = resolveTranscriptPath(agentId, sessionId, startEvent.cwd as string);
       isLive = true;
+      if (!filePath) {
+        return c.json({ error: "Agent id does not map to a transcript path" }, 404);
+      }
     }
 
     // 3. Read transcript
