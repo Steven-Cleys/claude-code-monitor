@@ -1,5 +1,8 @@
 import { test, expect, describe } from "bun:test";
-import { latestContextPoint } from "../services/context-poller";
+import { mkdtempSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { latestContextPoint, readSessionContext } from "../services/context-poller";
 
 const line = (obj: unknown) => JSON.stringify(obj);
 
@@ -45,5 +48,18 @@ describe("latestContextPoint", () => {
     const tail = line({ type: "user", timestamp: "2026-07-10T10:00:00Z", message: { role: "user", content: "hi" } });
 
     expect(latestContextPoint(tail)).toBeNull();
+  });
+});
+
+describe("readSessionContext", () => {
+  test("reads the newest context from the stored transcript path", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "context-")), "session.jsonl");
+    writeFileSync(path, assistantLine("msg_1", "2026-07-10T10:00:00Z", 70_000) + "\n");
+
+    expect(await readSessionContext(path)).toEqual({ tokens: 70_000, ts: "2026-07-10T10:00:00Z" });
+  });
+
+  test("returns null for a session without a transcript path", async () => {
+    expect(await readSessionContext(null)).toBeNull();
   });
 });

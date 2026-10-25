@@ -83,10 +83,10 @@ async function scanActiveSessions(broadcast: BroadcastFn) {
   }
 }
 
-export function startTranscriptScanner(broadcast: BroadcastFn, intervalMs = TRANSCRIPT_SCAN_INTERVAL_MS) {
+export function startTranscriptScanner(broadcast: BroadcastFn) {
   const timer = setInterval(() => {
     scanActiveSessions(broadcast).catch((err) => console.error("Transcript scan error:", err));
-  }, intervalMs);
+  }, TRANSCRIPT_SCAN_INTERVAL_MS);
 
   return () => clearInterval(timer);
 }

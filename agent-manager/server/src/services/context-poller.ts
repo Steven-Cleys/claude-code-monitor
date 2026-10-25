@@ -1,7 +1,6 @@
 import { CONTEXT_POLL_INTERVAL_MS, CONTEXT_TAIL_BYTES } from "../constants";
 import { sql } from "../db/connection";
-import { parseTranscriptLine } from "./transcript-reader";
-import { buildContextTimeline, resolveTranscriptFileForSession, type ContextPoint } from "./xray";
+import { parseTranscriptLine, buildContextPoints, type ContextPoint } from "./transcript-reader";
 import type { BroadcastFn } from "../types/broadcast";
 
 // Newest assistant usage in a transcript tail chunk. The chunk may start
@@ -11,7 +10,7 @@ export function latestContextPoint(tailText: string): ContextPoint | null {
     .split("\n")
     .map(parseTranscriptLine)
     .filter((m) => m !== null);
-  return buildContextTimeline(messages).points.at(-1) ?? null;
+  return buildContextPoints(messages).at(-1) ?? null;
 }
 
 export interface SessionContext {
@@ -19,14 +18,10 @@ export interface SessionContext {
   ts: string;
 }
 
-export async function readSessionContext(
-  sessionId: string,
-  cwd: string | null,
-): Promise<SessionContext | null> {
-  const filePath = await resolveTranscriptFileForSession(sessionId, cwd);
-  if (!filePath) return null;
+export async function readSessionContext(transcriptPath: string | null): Promise<SessionContext | null> {
+  if (!transcriptPath) return null;
 
-  const file = Bun.file(filePath);
+  const file = Bun.file(transcriptPath);
   let size: number;
   try {
     size = file.size;
@@ -40,14 +35,14 @@ export async function readSessionContext(
   }
 }
 
-export function startContextPoller(broadcast: BroadcastFn, intervalMs = CONTEXT_POLL_INTERVAL_MS) {
+export function startContextPoller(broadcast: BroadcastFn) {
   const timer = setInterval(async () => {
     try {
       const active = await sql`
-        SELECT id, cwd FROM sessions WHERE status = 'active'
+        SELECT id, transcript_path FROM sessions WHERE status = 'active'
       `;
       for (const session of active) {
-        const context = await readSessionContext(session.id as string, session.cwd as string | null);
+        const context = await readSessionContext(session.transcript_path as string | null);
         if (!context) continue;
         broadcast("sessions", {
           type: "session_context",
@@ -57,7 +52,7 @@ export function startContextPoller(broadcast: BroadcastFn, intervalMs = CONTEXT_
     } catch (err) {
       console.error("Context poll error:", err);
     }
-  }, intervalMs);
+  }, CONTEXT_POLL_INTERVAL_MS);
 
   return () => clearInterval(timer);
 }

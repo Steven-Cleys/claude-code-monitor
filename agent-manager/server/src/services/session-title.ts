@@ -1,8 +1,5 @@
 import { sql } from "../db/connection";
-import {
-  extractSessionTitleFromFile,
-  resolveSessionTranscriptPath,
-} from "./transcript-reader";
+import { extractSessionTitleFromFile } from "./transcript-reader";
 import type { BroadcastFn } from "../types/broadcast";
 
 // Per-session lock — UserPromptSubmit and Stop can land close together and
@@ -14,16 +11,14 @@ const inFlight = new Set<string>();
 // persist it on the session row, and broadcast only when it actually changed.
 export async function refreshSessionTitle(
   sessionId: string,
-  cwd: string,
+  transcriptPath: string,
   broadcast: BroadcastFn,
 ): Promise<void> {
   if (inFlight.has(sessionId)) return;
   inFlight.add(sessionId);
 
   try {
-    const filePath = resolveSessionTranscriptPath(sessionId, cwd);
-    if (!filePath) return;
-    const title = await extractSessionTitleFromFile(filePath);
+    const title = await extractSessionTitleFromFile(transcriptPath);
     if (!title) return;
 
     const [row] = await sql`

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
 import type { TimelineEvent as TEvent, Turn } from "../types/events";
-import TimelineEvent from "./TimelineEvent.vue";
-import EventDetail from "./EventDetail.vue";
+import EventRow from "./EventRow.vue";
 import TurnHeader from "./TurnHeader.vue";
 
 const props = defineProps<{
@@ -83,46 +82,31 @@ function toggleTurn(turn: Turn) {
           @toggle="toggleTurn(group.turn)"
         />
         <template v-if="!isCollapsed(group.turn)">
-          <template v-for="event in group.events" :key="event.id">
-            <TimelineEvent
-              :event="event"
-              :expanded="expandedEventId === event.id"
-              @toggle-detail="emit('toggleDetail', event.id)"
-            />
-            <EventDetail
-              v-if="expandedEventId === event.id"
-              :event="event"
-              @close="emit('toggleDetail', event.id)"
-            />
-          </template>
+          <EventRow
+            v-for="event in group.events"
+            :key="event.id"
+            :event="event"
+            :expanded="expandedEventId === event.id"
+            @toggle-detail="emit('toggleDetail', event.id)"
+          />
         </template>
       </template>
-      <template v-for="event in grouped.pre" :key="event.id">
-        <TimelineEvent
-          :event="event"
-          :expanded="expandedEventId === event.id"
-          @toggle-detail="emit('toggleDetail', event.id)"
-        />
-        <EventDetail
-          v-if="expandedEventId === event.id"
-          :event="event"
-          @close="emit('toggleDetail', event.id)"
-        />
-      </template>
+      <EventRow
+        v-for="event in grouped.pre"
+        :key="event.id"
+        :event="event"
+        :expanded="expandedEventId === event.id"
+        @toggle-detail="emit('toggleDetail', event.id)"
+      />
     </template>
     <TransitionGroup v-else name="event-stream">
-      <template v-for="event in events" :key="event.id">
-        <TimelineEvent
-          :event="event"
-          :expanded="expandedEventId === event.id"
-          @toggle-detail="emit('toggleDetail', event.id)"
-        />
-        <EventDetail
-          v-if="expandedEventId === event.id"
-          :event="event"
-          @close="emit('toggleDetail', event.id)"
-        />
-      </template>
+      <EventRow
+        v-for="event in events"
+        :key="event.id"
+        :event="event"
+        :expanded="expandedEventId === event.id"
+        @toggle-detail="emit('toggleDetail', event.id)"
+      />
     </TransitionGroup>
     <div v-if="events.length === 0 && !grouped" class="flex flex-col items-center justify-center py-20 text-center">
       <div class="w-12 h-12 rounded-full border border-ink-border flex items-center justify-center mb-4">

@@ -1,12 +1,11 @@
 import { Hono } from "hono";
 import {
-  getActiveSessions,
+  listRecentSessions,
   clearSessionAttention,
   broadcastAttentionChanged,
 } from "../services/session-tracker";
-import { extractSubagents } from "../services/subagent-enricher";
+import { extractSubagents } from "../services/subagents";
 import { readSessionContext } from "../services/context-poller";
-import { buildXray } from "../services/xray";
 import { buildTurnLedger } from "../services/turns";
 import { sql } from "../db/connection";
 import { clampQueryInt } from "./query";
@@ -17,13 +16,13 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
 
   router.get("/", async (c) => {
     const hours = clampQueryInt(c.req.query("hours"), 4, 0, 168);
-    const sessions = await getActiveSessions(hours);
+    const sessions = await listRecentSessions(hours);
 
     const enriched = await Promise.all(
       sessions.map(async (session) => ({
         ...session,
         subagents: await extractSubagents(session.id),
-        context: await readSessionContext(session.id, session.cwd as string | null),
+        context: await readSessionContext(session.transcript_path as string | null),
       })),
     );
 
@@ -32,9 +31,9 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
 
   router.get("/:id/events", async (c) => {
     const sessionId = c.req.param("id");
-    const limit = clampQueryInt(c.req.query("limit"), 100, 1, 1000);
+    const limit = clampQueryInt(c.req.query("limit"), 100, 1, 5000);
     const events = await sql`
-      SELECT id, event_type, tool_name, tool_input, tool_response,
+      SELECT id, session_id, event_type, tool_name, tool_input,
              payload->>'agent_id' as agent_id, created_at
       FROM events
       WHERE session_id = ${sessionId}
@@ -46,12 +45,6 @@ export function createSessionsRouter(broadcast: BroadcastFn) {
 
   router.get("/:id/turns", async (c) => {
     const result = await buildTurnLedger(c.req.param("id"));
-    if (!result) return c.json({ error: "Session not found" }, 404);
-    return c.json(result);
-  });
-
-  router.get("/:id/xray", async (c) => {
-    const result = await buildXray(c.req.param("id"));
     if (!result) return c.json({ error: "Session not found" }, 404);
     return c.json(result);
   });

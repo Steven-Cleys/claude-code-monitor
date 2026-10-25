@@ -1,9 +1,10 @@
-import type { UpgradeWebSocket } from "hono/bun";
+import type { ServerWebSocket } from "bun";
+import type { UpgradeWebSocket } from "hono/ws";
 import { startWatching } from "../services/transcript-watcher";
 import type { BroadcastFn } from "../types/broadcast";
 
 export function createTranscriptWebSocketRoute(
-  upgradeWebSocket: UpgradeWebSocket,
+  upgradeWebSocket: UpgradeWebSocket<ServerWebSocket>,
   broadcast: BroadcastFn,
 ) {
   return upgradeWebSocket(() => ({
@@ -17,22 +18,15 @@ export function createTranscriptWebSocketRoute(
             ? event.data
             : new TextDecoder().decode(event.data as ArrayBuffer);
         const msg = JSON.parse(raw);
+        if (typeof msg.topic !== "string" || !msg.topic.startsWith("transcript:")) return;
 
-        if (
-          msg.action === "subscribe" &&
-          typeof msg.topic === "string" &&
-          msg.topic.startsWith("transcript:")
-        ) {
+        if (msg.action === "subscribe") {
           ws.raw?.subscribe(msg.topic);
           const agentId = msg.topic.replace("transcript:", "");
           startWatching(agentId, broadcast);
         }
 
-        if (
-          msg.action === "unsubscribe" &&
-          typeof msg.topic === "string" &&
-          msg.topic.startsWith("transcript:")
-        ) {
+        if (msg.action === "unsubscribe") {
           ws.raw?.unsubscribe(msg.topic);
         }
       } catch {

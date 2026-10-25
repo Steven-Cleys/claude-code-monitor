@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { TranscriptLine, ContentBlock } from "../../types/events";
+import { taskNotificationSummary } from "../../utils/format";
 import ChatMessage from "./ChatMessage.vue";
 import ToolCallBlock from "./ToolCallBlock.vue";
 import ThinkingBlock from "./ThinkingBlock.vue";
@@ -13,16 +14,13 @@ const props = defineProps<{
   showTools: boolean;
 }>();
 
-const contentBlocks = computed((): ContentBlock[] => {
-  if (!props.msg.message?.content) return [];
-  if (typeof props.msg.message.content === "string") return [];
-  return props.msg.message.content as ContentBlock[];
-});
+const content = computed(() => props.msg.message?.content);
+
+const contentBlocks = computed((): ContentBlock[] => (Array.isArray(content.value) ? content.value : []));
 
 const textContent = computed((): string => {
-  if (!props.msg.message?.content) return "";
-  if (typeof props.msg.message.content === "string") return props.msg.message.content;
-  return (props.msg.message.content as ContentBlock[])
+  if (typeof content.value === "string") return content.value;
+  return contentBlocks.value
     .filter((b) => b.type === "text")
     .map((b) => b.text ?? "")
     .join("\n");
@@ -30,28 +28,27 @@ const textContent = computed((): string => {
 
 const isUserPrompt = computed(() => {
   if (props.msg.type !== "user") return false;
-  if (!Array.isArray(props.msg.message?.content)) return true;
-  const blocks = props.msg.message!.content as ContentBlock[];
-  return blocks.some((b) => b.type !== "tool_result");
+  if (!Array.isArray(content.value)) return true;
+  return contentBlocks.value.some((b) => b.type !== "tool_result");
 });
+
+const taskNotice = computed(() => (isUserPrompt.value ? taskNotificationSummary(textContent.value) : null));
 
 const isToolResultOnly = computed(() => {
   if (props.msg.type !== "user") return false;
-  if (!Array.isArray(props.msg.message?.content)) return false;
-  const blocks = props.msg.message!.content as ContentBlock[];
-  return blocks.every((b) => b.type === "tool_result");
+  if (!Array.isArray(content.value)) return false;
+  return contentBlocks.value.every((b) => b.type === "tool_result");
 });
 
-const progressText = computed(() => {
-  if (typeof props.msg.message?.content === "string") return props.msg.message.content;
-  return "";
-});
+const progressText = computed(() => (typeof content.value === "string" ? content.value : ""));
 </script>
 
 <template>
+  <ProgressEvent v-if="taskNotice" :content="taskNotice" />
+
   <!-- User prompt -->
   <ChatMessage
-    v-if="isUserPrompt"
+    v-else-if="isUserPrompt"
     role="user"
     :content="textContent"
     :timestamp="msg.timestamp"

@@ -2,8 +2,7 @@ import { Hono } from "hono";
 import { sql } from "../db/connection";
 import {
   readTranscriptFile,
-  resolveTranscriptPath,
-  resolveSessionTranscriptPath,
+  subagentTranscriptPath,
   hostPathToContainerPath,
   extractMetadata,
 } from "../services/transcript-reader";
@@ -19,17 +18,14 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
     const sessionId = c.req.param("sessionId");
 
     const [session] = await sql`
-      SELECT id, cwd, status FROM sessions WHERE id = ${sessionId} LIMIT 1
+      SELECT id, transcript_path, status FROM sessions WHERE id = ${sessionId} LIMIT 1
     `;
 
-    if (!session?.cwd) {
-      return c.json({ error: "Session not found or missing cwd" }, 404);
+    if (!session?.transcript_path) {
+      return c.json({ error: "Session not found or missing transcript path" }, 404);
     }
 
-    const filePath = resolveSessionTranscriptPath(sessionId, session.cwd as string);
-    if (!filePath) {
-      return c.json({ error: "Session id does not map to a transcript path" }, 404);
-    }
+    const filePath = session.transcript_path as string;
     const messages = await readTranscriptFile(filePath);
     const isLive = session.status !== "ended";
 
@@ -69,7 +65,7 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
       LIMIT 1
     `;
 
-    // 2. If no stop event, find from SubagentStart + session CWD
+    // 2. If no stop event, find from SubagentStart + the session's transcript path
     let filePath: string | null = null;
     let sessionId: string | null = null;
     let isLive = false;
@@ -86,7 +82,7 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
     } else {
       // Subagent may still be running — derive path
       const [startEvent] = await sql`
-        SELECT e.session_id, s.cwd
+        SELECT e.session_id, s.transcript_path
         FROM events e
         JOIN sessions s ON s.id = e.session_id
         WHERE e.event_type = 'SubagentStart'
@@ -94,12 +90,12 @@ export function createTranscriptsRouter(broadcast: BroadcastFn) {
         LIMIT 1
       `;
 
-      if (!startEvent?.cwd) {
+      if (!startEvent?.transcript_path) {
         return c.json({ error: "Agent not found" }, 404);
       }
 
       sessionId = startEvent.session_id as string;
-      filePath = resolveTranscriptPath(agentId, sessionId, startEvent.cwd as string);
+      filePath = subagentTranscriptPath(startEvent.transcript_path as string, agentId);
       isLive = true;
       if (!filePath) {
         return c.json({ error: "Agent id does not map to a transcript path" }, 404);

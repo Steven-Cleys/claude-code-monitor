@@ -17,9 +17,8 @@ const inFlight = new Set<string>();
 // Called from two paths:
 //   - hooks.ts on SubagentStop (eager — so badges appear as soon as a
 //     subagent finishes, not only when its transcript is opened)
-//   - transcripts.ts GET /:agentId (lazy fallback for older agents whose
-//     SubagentStop fired before this code shipped, or if eager extraction
-//     failed)
+//   - transcripts.ts GET /:agentId (lazy fallback when eager extraction
+//     failed or SubagentStop never arrived)
 //
 // Returns null if the transcript file is missing/empty, or if another
 // caller is already persisting the same agent.
@@ -84,4 +83,21 @@ export async function persistSubagentMetadata(
   } finally {
     inFlight.delete(agentId);
   }
+}
+
+// Re-reads rows marked by migration 007, once. Rows whose transcript file is
+// gone keep their old numbers, stay marked and are tried again at the next
+// startup.
+export async function reextractSubagentMetadata(broadcast: BroadcastFn): Promise<void> {
+  const rows = await sql`
+    SELECT agent_id, session_id, transcript_path
+    FROM subagent_metadata
+    WHERE extracted_at IS NULL AND transcript_path IS NOT NULL
+  `;
+  let reextracted = 0;
+  for (const row of rows) {
+    const metadata = await persistSubagentMetadata(row.agent_id, row.session_id, row.transcript_path, broadcast);
+    if (metadata) reextracted++;
+  }
+  if (reextracted > 0) console.log(`Re-extracted subagent metadata for ${reextracted} agents`);
 }

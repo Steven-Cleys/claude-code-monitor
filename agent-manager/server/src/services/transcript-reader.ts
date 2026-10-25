@@ -60,6 +60,41 @@ export function computeSessionTotals(messages: TranscriptLine[]): SessionTotals 
   return { model, tokens };
 }
 
+export interface ContextPoint {
+  ts: string;
+  input: number;
+  cache_read: number;
+  cache_creation: number;
+  output: number;
+  context: number;
+}
+
+// One point per assistant API turn, oldest first. Transcripts repeat the same
+// message.id across streamed chunks with cumulative usage, so keep the last line per id.
+export function buildContextPoints(messages: TranscriptLine[]): ContextPoint[] {
+  const byId = new Map<string, ContextPoint>();
+  let anonCounter = 0;
+
+  for (const msg of messages) {
+    const usage = msg.message?.usage;
+    if (msg.type !== "assistant" || !usage) continue;
+    const id = msg.message?.id ?? `anon-${anonCounter++}`;
+    const input = usage.input_tokens ?? 0;
+    const cacheRead = usage.cache_read_input_tokens ?? 0;
+    const cacheCreation = usage.cache_creation_input_tokens ?? 0;
+    byId.set(id, {
+      ts: msg.timestamp,
+      input,
+      cache_read: cacheRead,
+      cache_creation: cacheCreation,
+      output: usage.output_tokens ?? 0,
+      context: input + cacheRead + cacheCreation,
+    });
+  }
+
+  return [...byId.values()].sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+}
+
 export function extractMetadata(
   messages: TranscriptLine[],
   agentId: string,
@@ -97,20 +132,12 @@ export async function extractSessionTitleFromFile(filePath: string): Promise<str
   if (!existsSync(filePath)) return null;
   const content = await Bun.file(filePath).text();
   const lines = content.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (!lines[i].includes("ai-title")) continue;
-    const parsed = parseTranscriptLine(lines[i]);
+  for (const line of lines.toReversed()) {
+    if (!line.includes("ai-title")) continue;
+    const parsed = parseTranscriptLine(line);
     if (parsed?.type === "ai-title" && parsed.aiTitle) return parsed.aiTitle;
   }
   return null;
-}
-
-// Claude Code's on-disk project hash maps EVERY non-alphanumeric character to
-// `-` (slashes, underscores, dots, spaces, ...), keeping the leading slash as
-// a leading dash: `/Users/a/ai_tools/my.app` → `-Users-a-ai-tools-my-app`,
-// `/Users/a/proj/.hidden` → `-Users-a-proj--hidden`.
-function cwdToProjectHash(cwd: string): string {
-  return cwd.replace(/[^a-zA-Z0-9]/g, "-");
 }
 
 // Ids and paths come from hook payloads, which anyone on this machine can
@@ -120,12 +147,8 @@ function insideProjectsDir(path: string): string | null {
   return resolved.startsWith(`${CLAUDE_PROJECTS_DIR}/`) ? resolved : null;
 }
 
-export function resolveTranscriptPath(agentId: string, sessionId: string, cwd: string): string | null {
-  return insideProjectsDir(`${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}/subagents/agent-${agentId}.jsonl`);
-}
-
-export function resolveSessionTranscriptPath(sessionId: string, cwd: string): string | null {
-  return insideProjectsDir(`${CLAUDE_PROJECTS_DIR}/${cwdToProjectHash(cwd)}/${sessionId}.jsonl`);
+export function subagentTranscriptPath(sessionTranscriptPath: string, agentId: string): string | null {
+  return insideProjectsDir(`${sessionTranscriptPath.replace(/\.jsonl$/, "")}/subagents/agent-${agentId}.jsonl`);
 }
 
 // Converts a host path like `/home/user/.claude/projects/<hash>/<id>/...`

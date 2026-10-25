@@ -7,7 +7,7 @@ AGENT_MANAGER_URL="${AGENT_MANAGER_URL:-http://localhost:3001}"
 
 payload=$(cat)
 
-# Fire-and-forget: background the POST and detach ALL stdio on the group —
+# Fire-and-forget: background the POST and detach ALL stdio on the group.
 # Claude Code waits for EOF on the hook's stdout pipe, so an fd left open in
 # the subshell would block the hook for up to --max-time seconds. The payload
 # is fed via stdin (--data-binary @-) because a multi-MB tool_response as a

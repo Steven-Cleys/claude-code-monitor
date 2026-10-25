@@ -1,13 +1,16 @@
 {
-  "name": "server",
+  "name": "agent-manager-server",
+  "description": "Hook receiver and API behind the Claude Code Monitor dashboard",
+  "license": "MIT",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "scripts": {
+    "typecheck": "tsc --noEmit"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "hono": "^4.13.14",

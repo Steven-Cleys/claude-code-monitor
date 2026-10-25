@@ -36,10 +36,8 @@ const resolved = computed(() => {
   };
 });
 
-// Guard against a null agent_id slipping through from a stale `inspectedSubagent`
-// ref. The parent already guards handleInspectAgent, but this is belt and
-// suspenders — if somehow the modal mounts without an id, close it and
-// short-circuit into an empty-state.
+// App.vue only opens subagents that have an agent_id. If the modal still
+// mounts without an id, close it instead of fetching a transcript that cannot exist.
 const {
   filteredMessages,
   metadata,

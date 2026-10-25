@@ -1,15 +1,41 @@
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import type { Session, Subagent, SubagentMetadata, TimelineEvent, WsMessage } from "../types/events";
 import { totalSessionCost } from "../utils/pricing";
 
 // Keep the in-memory event list bounded — matches the fetch limit, so a
 // long-lived tab doesn't grow it (and every computed over it) forever.
 const MAX_EVENTS = 2000;
+const MAX_SESSION_EVENTS = 5000;
+
+function subagentRow(fields: Pick<Subagent, "name" | "dispatched_at"> & Partial<Subagent>): Subagent {
+  return {
+    description: "",
+    subagent_type: null,
+    agent_type: null,
+    agent_id: null,
+    status: "running",
+    completed_at: null,
+    permission_mode: null,
+    last_message: null,
+    run_in_background: false,
+    ...fields,
+  };
+}
+
+// Read back through the session so pushes go through Vue's reactive proxy.
+function subagentsOf(session: Session): Subagent[] {
+  if (!session.subagents) session.subagents = [];
+  return session.subagents;
+}
 
 export function useAgents() {
   const sessions = ref<Map<string, Session>>(new Map());
   const events = ref<TimelineEvent[]>([]);
   const selectedSessionId = ref<string | null>(null);
+  // The range-wide list stops at MAX_EVENTS, so the selected session loads
+  // its own events; until they arrive the timeline filters the shared list.
+  const selectedEvents = ref<TimelineEvent[]>([]);
+  const selectedEventsFor = ref<string | null>(null);
   const hoursFilter = ref(4);
 
   // Holds subagent metadata that arrived via WS before the corresponding
@@ -35,11 +61,11 @@ export function useAgents() {
     pendingStops.set(agentId, { completed_at: completedAt, buffered_at: now });
   }
 
-  // F2: Search & filter state
+  // Search & filter state
   const searchQuery = ref("");
   const activeEventTypes = ref<Set<string>>(new Set());
 
-  // F3: Event detail expansion
+  // Event detail expansion
   const expandedEventId = ref<number | null>(null);
 
   // Subagent filter state
@@ -84,6 +110,7 @@ export function useAgents() {
   // must not overwrite the newer range's data.
   let sessionsFetchSeq = 0;
   let eventsFetchSeq = 0;
+  let selectedEventsFetchSeq = 0;
 
   async function fetchSessions() {
     const seq = ++sessionsFetchSeq;
@@ -95,20 +122,16 @@ export function useAgents() {
         s.id,
         {
           ...s,
-          event_count: Number(s.event_count) || 0,
-          // BIGINT columns arrive as strings; only seed tokens once the
-          // scanner has written them, so sessions without a transcript keep
-          // the "no data" state instead of showing zeros.
+          // Only seed tokens once the scanner has written them, so sessions
+          // without a transcript keep the "no data" state instead of showing zeros.
           tokens: s.tokens_updated_at
             ? {
-                input: Number(s.input_tokens) || 0,
-                output: Number(s.output_tokens) || 0,
-                cache_read: Number(s.cache_read_tokens) || 0,
-                cache_creation: Number(s.cache_creation_tokens) || 0,
+                input: s.input_tokens ?? 0,
+                output: s.output_tokens ?? 0,
+                cache_read: s.cache_read_tokens ?? 0,
+                cache_creation: s.cache_creation_tokens ?? 0,
               }
             : undefined,
-          // NUMERIC arrives as a string too.
-          cost_usd: s.cost_usd != null ? Number(s.cost_usd) : null,
         },
       ]),
     );
@@ -121,6 +144,86 @@ export function useAgents() {
     const data = await res.json();
     if (seq !== eventsFetchSeq) return;
     events.value = data;
+  }
+
+  async function fetchSelectedEvents() {
+    const seq = ++selectedEventsFetchSeq;
+    const sessionId = selectedSessionId.value;
+    if (!sessionId) {
+      selectedEventsFor.value = null;
+      selectedEvents.value = [];
+      return;
+    }
+    const res = await fetch(`/api/sessions/${sessionId}/events?limit=${MAX_SESSION_EVENTS}`);
+    const data = await res.json();
+    if (seq !== selectedEventsFetchSeq) return;
+    selectedEvents.value = data;
+    selectedEventsFor.value = sessionId;
+  }
+
+  watch(selectedSessionId, fetchSelectedEvents);
+
+  // agent_id / agent_type are forwarded at the top level of the broadcast for
+  // SubagentStart/SubagentStop (NOT inside tool_input, which is null for
+  // lifecycle events).
+  function applySubagentEvent(session: Session, event: TimelineEvent) {
+    if (event.event_type === "PreToolUse" && event.tool_name === "Agent" && event.tool_input) {
+      const subagents = subagentsOf(session);
+      subagents.push(
+        subagentRow({
+          name: (event.tool_input.name as string) ?? `agent-${subagents.length + 1}`,
+          description: (event.tool_input.description as string) ?? "",
+          subagent_type: (event.tool_input.subagent_type as string) ?? null,
+          dispatched_at: event.created_at,
+          run_in_background: (event.tool_input.run_in_background as boolean) ?? false,
+        }),
+      );
+    }
+
+    if (event.event_type === "SubagentStart" && event.agent_id) {
+      const subagents = subagentsOf(session);
+      // Bind the id to the oldest still-unidentified running row. SubagentStart
+      // fires right after its PreToolUse/Agent dispatch, so dispatch order and
+      // start order match.
+      const unbound = subagents.find((a) => a.status === "running" && !a.agent_id);
+      if (unbound) {
+        unbound.agent_id = event.agent_id;
+        unbound.agent_type = event.agent_type ?? null;
+      } else {
+        // Start without a dispatch row (background/workflow spawns fire no
+        // PreToolUse/Agent): surface it as a running row.
+        subagents.push(
+          subagentRow({
+            name: event.agent_id.slice(-8),
+            agent_type: event.agent_type ?? null,
+            agent_id: event.agent_id,
+            dispatched_at: event.created_at,
+          }),
+        );
+      }
+    }
+
+    if (event.event_type === "SubagentStop" && event.agent_id) {
+      // Match strictly by agent_id (bound at SubagentStart). A blind
+      // "first running row" fallback would complete the WRONG row when
+      // parallel subagents finish out of dispatch order, or let a
+      // phantom stop consume a real running row.
+      const row = subagentsOf(session).find((a) => a.agent_id === event.agent_id);
+      if (row) {
+        row.status = "completed";
+        row.completed_at = event.created_at;
+        const pending = pendingMetadata.get(event.agent_id);
+        if (pending) {
+          row.metadata = pending;
+          pendingMetadata.delete(event.agent_id);
+        }
+      } else {
+        // Stop-only agent, either real (workflow/background) or phantom
+        // (suggestion micro-agent). Buffer it: the metadata broadcast that
+        // only real agents produce creates the row.
+        bufferPendingStop(event.agent_id, event.created_at);
+      }
+    }
   }
 
   function processMessage(msg: WsMessage) {
@@ -138,6 +241,7 @@ export function useAgents() {
       case "new_event": {
         events.value.unshift(msg.data);
         if (events.value.length > MAX_EVENTS) events.value.length = MAX_EVENTS;
+        if (msg.data.session_id === selectedEventsFor.value) selectedEvents.value.unshift(msg.data);
         const session = sessions.value.get(msg.data.session_id);
         if (session) {
           session.last_seen = msg.data.created_at;
@@ -148,79 +252,9 @@ export function useAgents() {
             session.status = "active";
           }
           session.last_tool = msg.data.tool_name;
-          session.event_count = Number(session.event_count ?? 0) + 1;
+          session.event_count = (session.event_count ?? 0) + 1;
 
-          // Real-time subagent tracking
-          if (msg.data.event_type === "PreToolUse" && msg.data.tool_name === "Agent" && msg.data.tool_input) {
-            if (!session.subagents) session.subagents = [];
-            session.subagents.push({
-              name: (msg.data.tool_input.name as string) ?? `agent-${session.subagents.length + 1}`,
-              description: (msg.data.tool_input.description as string) ?? "",
-              subagent_type: (msg.data.tool_input.subagent_type as string) ?? null,
-              agent_type: null,
-              agent_id: null,
-              status: "running",
-              dispatched_at: msg.data.created_at,
-              completed_at: null,
-              permission_mode: null,
-              last_message: null,
-              run_in_background: (msg.data.tool_input.run_in_background as boolean) ?? false,
-            });
-          }
-
-          // agent_id / agent_type are forwarded at the top-level of the
-          // broadcast for SubagentStart/SubagentStop (NOT inside tool_input,
-          // which is null for lifecycle events).
-          if (msg.data.event_type === "SubagentStart" && msg.data.agent_id) {
-            if (!session.subagents) session.subagents = [];
-            // Bind the id to the oldest still-unidentified running row —
-            // SubagentStart fires right after its PreToolUse/Agent dispatch,
-            // so dispatch order and start order match.
-            const unbound = session.subagents.find((a) => a.status === "running" && !a.agent_id);
-            if (unbound) {
-              unbound.agent_id = msg.data.agent_id;
-              unbound.agent_type = msg.data.agent_type ?? null;
-            } else {
-              // Start without a dispatch row (background/workflow spawns fire
-              // no PreToolUse/Agent) — surface it as a running row.
-              session.subagents.push({
-                name: msg.data.agent_id.slice(-8),
-                description: "",
-                subagent_type: null,
-                agent_type: msg.data.agent_type ?? null,
-                agent_id: msg.data.agent_id,
-                status: "running",
-                dispatched_at: msg.data.created_at,
-                completed_at: null,
-                permission_mode: null,
-                last_message: null,
-                run_in_background: false,
-              });
-            }
-          }
-
-          if (msg.data.event_type === "SubagentStop" && msg.data.agent_id) {
-            if (!session.subagents) session.subagents = [];
-            // Match strictly by agent_id (bound at SubagentStart). A blind
-            // "first running row" fallback would complete the WRONG row when
-            // parallel subagents finish out of dispatch order, or let a
-            // phantom stop consume a real running row.
-            const row = session.subagents.find((a) => a.agent_id === msg.data.agent_id);
-            if (row) {
-              row.status = "completed";
-              row.completed_at = msg.data.created_at;
-              const pending = pendingMetadata.get(msg.data.agent_id);
-              if (pending) {
-                row.metadata = pending;
-                pendingMetadata.delete(msg.data.agent_id);
-              }
-            } else {
-              // Stop-only agent — real (workflow/background) or phantom
-              // (suggestion micro-agent). Buffer it; the metadata broadcast
-              // that only real agents produce creates the row.
-              bufferPendingStop(msg.data.agent_id, msg.data.created_at);
-            }
-          }
+          applySubagentEvent(session, msg.data);
         }
         break;
       }
@@ -276,21 +310,16 @@ export function useAgents() {
           // surface it now as a completed row.
           const stop = pendingStops.get(msg.data.agent_id)!;
           pendingStops.delete(msg.data.agent_id);
-          if (!session.subagents) session.subagents = [];
-          session.subagents.push({
-            name: msg.data.agent_id.slice(-8),
-            description: "",
-            subagent_type: null,
-            agent_type: null,
-            agent_id: msg.data.agent_id,
-            status: "completed",
-            dispatched_at: stop.completed_at,
-            completed_at: stop.completed_at,
-            permission_mode: null,
-            last_message: null,
-            run_in_background: false,
-            metadata: msg.data.metadata,
-          });
+          subagentsOf(session).push(
+            subagentRow({
+              name: msg.data.agent_id.slice(-8),
+              agent_id: msg.data.agent_id,
+              status: "completed",
+              dispatched_at: stop.completed_at,
+              completed_at: stop.completed_at,
+              metadata: msg.data.metadata,
+            }),
+          );
         } else {
           // Subagent may not be in UI state yet — stash the metadata and
           // apply it when SubagentStop later sets agent_id.
@@ -301,7 +330,7 @@ export function useAgents() {
     }
   }
 
-  // F1: Total cost across all sessions
+  // Total cost across all sessions
   const totalCost = computed(() => totalSessionCost(sessions.value.values()));
 
   const attentionCount = computed(() => {
@@ -333,7 +362,8 @@ export function useAgents() {
     const types = activeEventTypes.value;
     const q = searchQuery.value.trim().toLowerCase();
 
-    return events.value.filter((e) => {
+    const source = sessionId && selectedEventsFor.value === sessionId ? selectedEvents.value : events.value;
+    return source.filter((e) => {
       if (sessionId && e.session_id !== sessionId) return false;
       if (sub) {
         if (e.session_id !== sub.sessionId) return false;
@@ -346,7 +376,7 @@ export function useAgents() {
     });
   });
 
-  // F2: Known event types across all events
+  // Known event types across all events
   const knownEventTypes = computed(() => {
     const types = new Set<string>();
     for (const e of events.value) types.add(e.event_type);
@@ -366,7 +396,6 @@ export function useAgents() {
     activeSubagentFilter.value = null;
   }
 
-  // F3: Toggle event detail panel
   function toggleEventDetail(id: number) {
     expandedEventId.value = expandedEventId.value === id ? null : id;
   }
@@ -400,6 +429,7 @@ export function useAgents() {
     hoursFilter,
     fetchSessions,
     fetchEvents,
+    fetchSelectedEvents,
     totalCost,
     attentionCount,
     searchQuery,

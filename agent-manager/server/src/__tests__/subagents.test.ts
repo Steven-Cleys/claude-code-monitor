@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { buildSubagents } from "../services/subagent-enricher";
+import { buildSubagents } from "../services/subagents";
 
 describe("buildSubagents", () => {
   test("includes a stop-only subagent (SubagentStop, no SubagentStart) as a completed row", () => {
@@ -34,7 +34,7 @@ describe("buildSubagents", () => {
       status: "completed",
       completed_at: "2026-07-06T09:00:00.000Z",
     });
-    expect(result[0].metadata?.tool_call_count).toBe(3);
+    expect(result[0]!.metadata?.tool_call_count).toBe(3);
   });
 
   test("filters phantom stop-only rows (empty agent_type AND no metadata)", () => {
@@ -73,7 +73,7 @@ describe("buildSubagents", () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0].agent_type).toBe("general-purpose");
+    expect(result[0]!.agent_type).toBe("general-purpose");
   });
 
   test("does not duplicate a subagent that has both a start and a stop", () => {
@@ -103,9 +103,9 @@ describe("buildSubagents", () => {
     });
 
     expect(result).toHaveLength(1);
-    expect(result[0].agent_id).toBe("start1");
-    expect(result[0].name).toBe("Explore");
-    expect(result[0].status).toBe("completed");
+    expect(result[0]!.agent_id).toBe("start1");
+    expect(result[0]!.name).toBe("Explore");
+    expect(result[0]!.status).toBe("completed");
   });
 
   test("orders started and stop-only subagents chronologically by dispatch/stop time", () => {

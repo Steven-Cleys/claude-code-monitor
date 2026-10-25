@@ -32,9 +32,8 @@ export function modelTier(model: string | null | undefined): string {
   return model.split("-").slice(1, 3).join("-") || model;
 }
 
-// Single registry for per-event-type presentation. Icon, text color, and
-// accent border used to live in three separate switches that had already
-// drifted apart — add new event types here, in one place.
+// Single registry for per-event-type presentation (icon, text color, accent
+// border), so a new event type is added in one place.
 const EVENT_TYPE_META: Record<string, { icon: string; color?: string; border?: string }> = {
   PreToolUse: { icon: "▶", color: "text-cyan-glow", border: "border-l-cyan-glow/40" },
   PostToolUse: { icon: "✓", color: "text-signal-green", border: "border-l-signal-green/40" },
@@ -101,4 +100,11 @@ export function toolInputSummary(input: Record<string, unknown>): string {
 export function toolDetail(event: TimelineEvent): string {
   if (!event.tool_input) return "";
   return toolInputSummary(event.tool_input);
+}
+
+// Claude Code reports a finished background agent as a user message holding a
+// <task-notification> XML block. Its <summary> is the readable part.
+export function taskNotificationSummary(text: string): string | null {
+  if (!text.startsWith("<task-notification>")) return null;
+  return text.match(/<summary>(.*?)<\/summary>/s)?.[1] ?? "Background task finished";
 }

@@ -21,6 +21,7 @@ const {
   hoursFilter,
   fetchSessions,
   fetchEvents,
+  fetchSelectedEvents,
   totalCost,
   attentionCount,
   searchQuery,
@@ -133,6 +134,7 @@ const activeSessionCount = computed(
 function refresh() {
   fetchSessions();
   fetchEvents();
+  fetchSelectedEvents();
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -288,9 +290,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           @toggle-collapse="eventStreamCollapsed = !eventStreamCollapsed"
         />
         <!--
-          Cap the swim lane to 18rem so a session with many subagents can't
-          starve the timeline of vertical space (it used to crush Timeline
-          to ~3 visible rows). Timeline gets `min-h-0 flex-1` so it actually
+          Cap the swim lane to 18rem so a session with many subagents leaves
+          the timeline room. Timeline gets `min-h-0 flex-1` so it actually
           claims the remaining height inside the flex column.
         -->
         <div

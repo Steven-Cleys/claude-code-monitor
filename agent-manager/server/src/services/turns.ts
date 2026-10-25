@@ -1,11 +1,6 @@
 import { sql } from "../db/connection";
-import { extractSubagents } from "./subagent-enricher";
-import { readTranscriptFile } from "./transcript-reader";
-import {
-  buildContextTimeline,
-  resolveTranscriptFileForSession,
-  type ContextPoint,
-} from "./xray";
+import { extractSubagents } from "./subagents";
+import { readTranscriptFile, buildContextPoints, type ContextPoint } from "./transcript-reader";
 
 export interface TurnEventRow {
   event_type: string;
@@ -49,6 +44,13 @@ export interface Turn {
 
 const WRITE_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
 
+// Claude Code reports a finished background agent as a UserPromptSubmit
+// whose prompt is a <task-notification> XML block. Its <summary> reads well.
+function promptTitle(prompt: string): string {
+  if (!prompt.startsWith("<task-notification>")) return prompt;
+  return prompt.match(/<summary>(.*?)<\/summary>/s)?.[1] ?? "Background task finished";
+}
+
 export function buildTurns(
   rows: TurnEventRow[],
   points: ContextPoint[],
@@ -64,7 +66,7 @@ export function buildTurns(
     if (row.event_type === "UserPromptSubmit") {
       current = {
         index: turns.length,
-        prompt: row.prompt ?? "",
+        prompt: promptTitle(row.prompt ?? ""),
         start: ts,
         end: ts,
         duration_ms: 0,
@@ -126,7 +128,7 @@ export function buildTurns(
 
 export async function buildTurnLedger(sessionId: string) {
   const [session] = await sql`
-    SELECT id, cwd FROM sessions WHERE id = ${sessionId} LIMIT 1
+    SELECT id, transcript_path FROM sessions WHERE id = ${sessionId} LIMIT 1
   `;
   if (!session) return null;
 
@@ -144,14 +146,9 @@ export async function buildTurnLedger(sessionId: string) {
     ORDER BY created_at ASC, id ASC
   `) as unknown as TurnEventRow[];
 
-  let points: ContextPoint[] = [];
-  const filePath = await resolveTranscriptFileForSession(
-    sessionId,
-    (session.cwd as string) ?? null,
-  );
-  if (filePath) {
-    points = buildContextTimeline(await readTranscriptFile(filePath)).points;
-  }
+  const points = session.transcript_path
+    ? buildContextPoints(await readTranscriptFile(session.transcript_path as string))
+    : [];
 
   const subagents: TurnSubagent[] = (await extractSubagents(sessionId)).map((sub) => ({
     dispatched_at: sub.dispatched_at,

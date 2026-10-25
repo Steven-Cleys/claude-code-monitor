@@ -1,6 +1,6 @@
 # Claude Code Monitor
 
-A self-hosted observability stack for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It answers two different questions:
+A self-hosted observability stack for [Claude Code](https://code.claude.com/docs). It answers two different questions:
 
 - **What is happening right now?** The Agent Manager is a live dashboard of every running session and subagent, with each tool call streamed in as it happens.
 - **What did it cost over time?** Grafana dashboards on top of Claude Code's OpenTelemetry metrics show cost, tokens and activity by model, session and day.
@@ -20,9 +20,9 @@ Everything runs locally with one `docker compose up`. No data leaves your machin
 
 **Metrics stack (historical)**
 
-- Five provisioned Grafana dashboards: Overview, Costs, Usage, Activity and a combined Full view
+- Five provisioned Grafana dashboards: Overview, Costs, Usage, Activity and Claude Code Monitoring, which has every panel in one view
 - Prometheus retention of two years, so you can look back across months
-- Claude Code events (prompts, tool results, API requests) stored in Loki and queryable with LogQL
+- Claude Code events (API requests, tool results and, if you enable them, prompts) stored in Loki and queryable with LogQL
 
 ## Architecture
 
@@ -48,7 +48,7 @@ The two halves use different sources on purpose. OTEL metrics are aggregates, wh
 
 ## Quick start
 
-**Prerequisites:** Docker and `jq`.
+**Prerequisites:** macOS or Linux with Claude Code, Docker, `jq`, `bash` and `curl`.
 
 ```bash
 git clone https://github.com/Steven-Cleys/claude-code-monitor.git
@@ -82,7 +82,9 @@ Leave `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` unset. Claude Code the
 ./agent-manager/install-hooks.sh
 ```
 
-This copies `send-hook.sh` to `~/.claude/hooks/` and registers it in `~/.claude/settings.json` for the session, prompt, tool, subagent, notification and compaction hook events. Remove it again with `./agent-manager/install-hooks.sh --uninstall`.
+This copies `send-hook.sh` to `~/.claude/hooks/` and registers it in `~/.claude/settings.json` for all 18 hook events the Agent Manager uses: session, prompt, tool, stop, subagent, notification, permission, compaction, task and teammate events. Running it again is safe and updates the copied script.
+
+The hook posts to `http://localhost:3001`. If you move the server to another port, set `AGENT_MANAGER_URL` in the environment Claude Code starts from.
 
 ### 3. Restart Claude Code and open the dashboards
 
@@ -95,6 +97,35 @@ This copies `send-hook.sh` to `~/.claude/hooks/` and registers it in `~/.claude/
 Every port is bound to `127.0.0.1`, so only your own machine can reach the stack. The Agent Manager API has no authentication and serves full session transcripts, and the default credentials are meant for local use, so keep it that way unless you add authentication in front.
 
 The API only answers requests addressed to `localhost` or `127.0.0.1`, which blocks DNS rebinding, so a custom `AGENT_MANAGER_URL` for the hooks must use one of those two hosts.
+
+### Upgrade
+
+```bash
+git pull
+docker compose up -d --build
+./agent-manager/install-hooks.sh
+```
+
+`--build` matters: the Agent Manager server and UI are built from this checkout, so a plain `docker compose up -d` keeps running the old images. Database migrations run when the server starts. The last line picks up changes to the hook script.
+
+### Uninstall
+
+1. `./agent-manager/install-hooks.sh --uninstall` removes the hook entries and `~/.claude/hooks/send-hook.sh`.
+2. Remove `CLAUDE_CODE_ENABLE_TELEMETRY` and the `OTEL_*` keys from the `env` block in `~/.claude/settings.json`. Otherwise Claude Code keeps exporting to a collector that no longer runs.
+3. `docker compose down -v` stops the stack and deletes its volumes, and with them all stored data.
+
+### Data and privacy
+
+Everything stays in four Docker volumes on your machine. Only Prometheus deletes old data on its own.
+
+| Volume | Holds | Kept for |
+|--------|-------|----------|
+| `postgres_data` | Every hook event, including prompts and full tool inputs and outputs, plus sessions, subagent metadata and session cost | Until you delete the volume |
+| `loki_data` | Claude Code's log events: API requests with cost, tool results and, if enabled, prompts | Until you delete the volume (retention is off) |
+| `prometheus_data` | The metrics, labelled with your account email, account id and organization id | Two years |
+| `grafana_data` | Grafana's own settings and users | Until you delete the volume |
+
+The server also reads the transcripts in `~/.claude/projects` through a read-only mount and stores nothing from them except token counts, model, title and tool-call counts.
 
 ## Agent Manager
 
@@ -128,6 +159,7 @@ Known limitation: spend while the stack was down is missing. Claude Code drops e
 | `GET /api/sessions/:id/turns` | Events grouped into turns, with tokens per turn |
 | `POST /api/sessions/:id/dismiss-attention` | Clear the "needs attention" flag |
 | `GET /api/events?since=ISO&limit=100` | Recent events across all sessions |
+| `GET /api/events/:id` | One event's tool response, which the event lists leave out |
 | `GET /api/transcripts/session/:sessionId` | Parsed transcript of a session |
 | `GET /api/transcripts/:agentId` | Parsed transcript of a subagent |
 | `ws://localhost:3001/ws` | Live event and session stream |
@@ -138,10 +170,10 @@ Known limitation: spend while the stack was down is missing. Claude Code drops e
 Requires [Bun](https://bun.sh).
 
 ```bash
-cd agent-manager/server && bun install && bun test
-cd agent-manager/ui && bun install && bun run build
+(cd agent-manager/server && bun install && bun test && bun run typecheck)
+(cd agent-manager/ui && bun install && bun test && bun run build)
 
-./scripts/health-check.sh            # check every service and endpoint
+./scripts/health-check.sh            # check every service's health endpoint
 ./scripts/restart.sh server --rebuild # rebuild and restart one service
 ```
 
@@ -155,11 +187,11 @@ cd agent-manager/ui && bun install && bun run build
 | [Costs](http://localhost:3000/d/claude-costs) | Cost by model, over time and per session |
 | [Usage](http://localhost:3000/d/claude-usage) | Tokens by type and model, trends |
 | [Activity](http://localhost:3000/d/claude-activity) | Commits, pull requests and lines changed |
-| [Full](http://localhost:3000/d/claude-code-monitor) | All panels in one view |
+| [Claude Code Monitoring](http://localhost:3000/d/claude-code-monitor) | All panels in one view |
 
 ### Metrics
 
-From the [Claude Code monitoring docs](https://docs.anthropic.com/en/docs/claude-code/monitoring-usage#available-metrics-and-events):
+The metrics these dashboards use. The [Claude Code monitoring docs](https://code.claude.com/docs/en/monitoring-usage#available-metrics-and-events) list every metric and event.
 
 | Prometheus name | Description |
 |-----------------|-------------|
@@ -202,12 +234,12 @@ Why deltas and not `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative
 - **Collector restart.** The running totals live in the collector's memory. After a restart every series starts again from 0. `increase()` treats that as a counter reset and counts correctly, but anything Claude Code sent while the collector was down is lost.
 - **Sessions idle for more than 24 hours.** The collector forgets the total and the series starts again from 0 on the next export. `increase()` handles this as a reset as well.
 - **Concurrent processes on one session.** The processor drops a delta that arrives with an older timestamp than the last one it accepted for that series. Two processes exporting at nearly the same moment can therefore lose an occasional delta.
-- **Data from before this setup.** Older samples hold overwritten deltas instead of totals, so panels undercount any range before the upgrade. The `claude_code.api_request` events in Loki carry the exact cost of every request and are the better source for that period.
+- **Data from older versions of this stack.** If you ran a version from before the `deltatocumulative` processor, samples from that time hold overwritten deltas instead of totals, so panels undercount those ranges. The `claude_code.api_request` events in Loki carry the exact cost of every request and are the better source for that period.
 
-Events land in Loki and can be queried from Grafana:
+Events land in Loki and can be queried from Grafana. Their fields (`event_name`, `cost_usd`, `model`, `session_id`, ...) are structured metadata, so filter on them directly instead of parsing the line with `| json`:
 
 ```logql
-{service_name="claude-code"} | json
+{service_name="claude-code"} | event_name="api_request"
 ```
 
 ## Troubleshooting
@@ -222,5 +254,9 @@ Events land in Loki and can be queried from Grafana:
 
 - Check that `~/.claude/settings.json` contains `send-hook.sh` entries.
 - `curl http://localhost:3001/api/health` should return `{"status":"ok"}`.
-- Send a test event: `echo '{"session_id":"test","hook_event_name":"Test","cwd":"/tmp"}' | ~/.claude/hooks/send-hook.sh`
+- Send a test event and check the status code, `201` means it was stored: `curl -sS -w ' %{http_code}\n' -X POST http://localhost:3001/api/hooks -H 'Content-Type: application/json' -d '{"session_id":"test","hook_event_name":"Test","cwd":"/tmp"}'`. It adds a session named `test` to the dashboard, which stays there until it falls out of the selected time range.
 - Check `docker compose logs agent-manager-server`.
+
+**`docker compose up` fails with "port is already allocated"**
+
+- Another program already uses one of the stack's ports: 3000, 3001, 3002, 3100, 4317, 4318, 5433, 8889 or 9090. Stop it, or change the host side of that port in `docker-compose.yml`. If you move the server off 3001, also set `AGENT_MANAGER_URL` for the hook.

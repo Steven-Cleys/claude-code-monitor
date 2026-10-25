@@ -7,7 +7,6 @@ export function useTranscript(
   status: "running" | "completed",
   kind: "subagent" | "session" = "subagent",
 ) {
-  const agentId = id;
   const apiUrl = kind === "session" ? `/api/transcripts/session/${id}` : `/api/transcripts/${id}`;
   const messages = ref<TranscriptLine[]>([]);
   const metadata = ref<SubagentMetadata | null>(null);
@@ -26,6 +25,8 @@ export function useTranscript(
 
   // WebSocket for live updates
   let ws: WebSocket | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let disposed = false;
 
   // Tool result lookup: maps tool_use_id → tool_result content
   const toolResults = computed(() => {
@@ -48,12 +49,7 @@ export function useTranscript(
     return messages.value.filter((msg) => {
       if (msg.type === "progress" && !showProgress.value) return false;
 
-      if (!msg.message?.content || !Array.isArray(msg.message.content)) {
-        if (msg.type === "user") return true;
-        if (msg.type === "assistant") return true;
-        if (msg.type === "progress") return showProgress.value;
-        return true;
-      }
+      if (!msg.message?.content || !Array.isArray(msg.message.content)) return true;
 
       const blocks = msg.message.content as ContentBlock[];
       const hasVisibleBlock = blocks.some((b) => {
@@ -78,6 +74,7 @@ export function useTranscript(
         return;
       }
       const data = await res.json();
+      error.value = null;
       messages.value = data.messages;
       metadata.value = data.metadata;
       isLive.value = data.isLive;
@@ -88,34 +85,48 @@ export function useTranscript(
     }
   }
 
+  async function load() {
+    await fetchTranscript();
+    if (isLive.value && !disposed) subscribeLive();
+  }
+
+  function closeSocket() {
+    const socket = ws;
+    ws = null;
+    socket?.close();
+  }
+
   function subscribeLive() {
-    if (!isLive.value) return;
+    const socket = new WebSocket(wsUrl("/ws/transcript"));
+    ws = socket;
 
-    ws = new WebSocket(wsUrl("/ws/transcript"));
-
-    ws.onopen = () => {
-      ws?.send(JSON.stringify({ action: "subscribe", topic: `transcript:${agentId}` }));
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ action: "subscribe", topic: `transcript:${id}` }));
     };
 
-    ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === "transcript_line" && msg.agentId === agentId) {
+        if (msg.type === "transcript_line" && msg.agentId === id) {
           messages.value.push(msg.data);
         }
-        if (msg.type === "transcript_complete" && msg.agentId === agentId) {
+        // The server also ends a watch after its 1h safety limit, so the
+        // refetch decides whether to subscribe again.
+        if (msg.type === "transcript_complete" && msg.agentId === id) {
           isLive.value = false;
-          ws?.close();
-          ws = null;
-          fetchTranscript();
+          closeSocket();
+          load();
         }
       } catch {
         // Ignore parse errors
       }
     };
 
-    ws.onclose = () => {
-      // Don't reconnect — modal handles lifecycle
+    // Lines broadcast while the socket was down are gone, so refetch first.
+    socket.onclose = () => {
+      if (ws !== socket || disposed) return;
+      ws = null;
+      reconnectTimer = setTimeout(load, 3000);
     };
   }
 
@@ -123,17 +134,12 @@ export function useTranscript(
     isPinnedToBottom.value = true;
   }
 
-  // Initialize
-  fetchTranscript().then(() => {
-    if (isLive.value) subscribeLive();
-  });
+  load();
 
   onUnmounted(() => {
-    if (ws) {
-      ws.send(JSON.stringify({ action: "unsubscribe", topic: `transcript:${agentId}` }));
-      ws.close();
-      ws = null;
-    }
+    disposed = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    closeSocket();
   });
 
   return {

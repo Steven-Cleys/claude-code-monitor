@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, toRef } from "vue";
 import type { Session } from "../types/events";
 import type { ChartBar } from "../composables/useChartData";
 import { useChartData } from "../composables/useChartData";
@@ -14,10 +14,7 @@ const emit = defineEmits<{
   "toggle-collapse": [];
 }>();
 
-const sessionsRef = computed(() => props.sessions);
-const selectedRef = computed(() => props.selectedSessionId);
-
-const chartData = useChartData(sessionsRef, selectedRef);
+const chartData = useChartData(toRef(props, "sessions"), toRef(props, "selectedSessionId"));
 
 const tooltip = ref<{
   visible: boolean;
@@ -94,7 +91,6 @@ const NODE_SIZE = 6;
           class="flex items-center overflow-hidden"
           :style="{ height: ROW_HEIGHT + 'px', marginBottom: ROW_GAP + 'px' }"
         >
-          <!-- Connector line from label to chart area -->
           <span
             class="text-[0.6rem] truncate font-[family-name:var(--font-mono)]"
             :style="{ color: bar.color, textShadow: '0 0 8px ' + bar.color + '88' }"
@@ -110,19 +106,19 @@ const NODE_SIZE = 6;
         <!-- Time axis -->
         <div class="relative border-b pcb-axis-border" :style="{ height: '20px' }">
           <div
-            v-for="(label, i) in chartData.timeLabels"
+            v-for="(tick, i) in chartData.ticks"
             :key="'tlabel-' + i"
             class="absolute text-[0.5rem] font-[family-name:var(--font-mono)] -translate-x-1/2"
-            :style="{ left: (i / 4) * 100 + '%', top: '3px', color: '#22c55e66' }"
+            :style="{ left: tick.pct + '%', top: '3px', color: '#22c55e66' }"
           >
-            {{ label }}
+            {{ tick.label }}
           </div>
           <!-- Tick marks -->
           <div
-            v-for="(_, i) in chartData.timeLabels"
+            v-for="(tick, i) in chartData.ticks"
             :key="'tick-' + i"
             class="absolute bottom-0"
-            :style="{ left: (i / 4) * 100 + '%', width: '1px', height: '5px', backgroundColor: '#22c55e44' }"
+            :style="{ left: tick.pct + '%', width: '1px', height: '5px', backgroundColor: '#22c55e44' }"
           ></div>
         </div>
 
@@ -136,10 +132,10 @@ const NODE_SIZE = 6;
           >
             <!-- Vertical grid lines (dotted) -->
             <div
-              v-for="(_, i) in chartData.timeLabels"
+              v-for="(tick, i) in chartData.ticks"
               :key="'vgrid-' + i"
               class="absolute inset-y-0 pcb-vgrid"
-              :style="{ left: (i / 4) * 100 + '%' }"
+              :style="{ left: tick.pct + '%' }"
             ></div>
 
             <!-- Dashed connector line from left edge to bar start (trace route) -->

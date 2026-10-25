@@ -5,5 +5,7 @@ export function clampQueryInt(
   min: number,
   max: number,
 ): number {
-  return Math.min(Math.max(Number(raw) || def, min), max);
+  const value = Math.trunc(Number(raw));
+  if (!raw || !Number.isFinite(value)) return def;
+  return Math.min(Math.max(value, min), max);
 }

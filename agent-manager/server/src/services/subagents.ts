@@ -20,7 +20,7 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
   // The four sources are independent — query them concurrently.
   const [starts, dispatches, stops, metadataRows] = await Promise.all([
     // Use SubagentStart as primary source (always fires, even if PreToolUse was missed)
-    sql`
+    sql<StartRow[]>`
       SELECT
         payload->>'agent_id' as agent_id,
         payload->>'agent_type' as agent_type,
@@ -31,7 +31,7 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
       ORDER BY created_at ASC
     `,
     // Get PreToolUse Agent events for names/descriptions (may be incomplete if server was down)
-    sql`
+    sql<DispatchRow[]>`
       SELECT
         tool_input->>'name' as name,
         tool_input->>'description' as description,
@@ -44,7 +44,7 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
         AND tool_name = 'Agent'
       ORDER BY created_at ASC
     `,
-    sql`
+    sql<StopRow[]>`
       SELECT
         payload->>'agent_id' as agent_id,
         payload->>'agent_type' as agent_type,
@@ -56,7 +56,7 @@ export async function extractSubagents(sessionId: string): Promise<Subagent[]> {
         AND event_type = 'SubagentStop'
       ORDER BY created_at ASC
     `,
-    sql`
+    sql<MetaRow[]>`
       SELECT agent_id, model, total_input_tokens, total_output_tokens,
              cache_read_tokens, cache_creation_tokens, tool_call_count
       FROM subagent_metadata
@@ -142,7 +142,7 @@ export function buildSubagents(rows: {
 
     for (let j = 0; j < dispatches.length; j++) {
       if (consumedDispatches.has(j)) continue;
-      const dispatchTime = new Date(dispatches[j].dispatched_at).getTime();
+      const dispatchTime = new Date(dispatches[j]!.dispatched_at).getTime();
       const delta = startTime - dispatchTime;
       if (delta >= 0 && delta <= MATCH_WINDOW_MS && delta < bestDelta) {
         bestDelta = delta;

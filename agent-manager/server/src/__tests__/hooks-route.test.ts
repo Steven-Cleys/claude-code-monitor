@@ -20,3 +20,13 @@ describe("POST /api/hooks", () => {
     expect((await post("application/json; charset=utf-8")).status).toBe(400);
   });
 });
+
+test("rejects a body that is not JSON", async () => {
+  const res = await router.request("/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{",
+  });
+
+  expect(res.status).toBe(400);
+});

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { createBunWebSocket } from "hono/bun";
+import type { ServerWebSocket } from "bun";
 import { localOriginOnly } from "./local-origin";
 import { runMigrations } from "./db/migrate";
 import { createHooksRouter } from "./routes/hooks";
@@ -9,12 +10,13 @@ import { startSessionTracker } from "./services/session-tracker";
 import { startContextPoller } from "./services/context-poller";
 import { startTranscriptScanner } from "./services/transcript-scanner";
 import { startCostPoller } from "./services/cost-poller";
+import { reextractSubagentMetadata } from "./services/subagent-metadata";
 import { createSessionsRouter } from "./routes/sessions";
 import { eventsRouter } from "./routes/events";
 import { createTranscriptsRouter } from "./routes/transcripts";
 import { createTranscriptWebSocketRoute } from "./ws/transcript-handler";
 
-const { upgradeWebSocket, websocket } = createBunWebSocket();
+const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
 
 const app = new Hono();
 
@@ -33,18 +35,12 @@ function broadcast(topic: string, data: unknown) {
   server.publish(topic, JSON.stringify(data));
 }
 
-const hooksRouter = createHooksRouter(broadcast);
-app.route("/api/hooks", hooksRouter);
+app.route("/api/hooks", createHooksRouter(broadcast));
+app.route("/api/sessions", createSessionsRouter(broadcast));
+app.route("/api/events", eventsRouter);
+app.route("/api/transcripts", createTranscriptsRouter(broadcast));
 
 app.get("/ws", createWebSocketRoute(upgradeWebSocket));
-
-const sessionsRouter = createSessionsRouter(broadcast);
-app.route("/api/sessions", sessionsRouter);
-app.route("/api/events", eventsRouter);
-
-const transcriptsRouter = createTranscriptsRouter(broadcast);
-app.route("/api/transcripts", transcriptsRouter);
-
 app.get("/ws/transcript", createTranscriptWebSocketRoute(upgradeWebSocket, broadcast));
 
 await runMigrations();
@@ -53,6 +49,9 @@ startSessionTracker(broadcast);
 startContextPoller(broadcast);
 startTranscriptScanner(broadcast);
 startCostPoller(broadcast);
+reextractSubagentMetadata(broadcast).catch((err) =>
+  console.error("Failed to re-extract subagent metadata:", err),
+);
 
 server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),

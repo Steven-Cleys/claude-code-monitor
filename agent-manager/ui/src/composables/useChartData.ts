@@ -1,6 +1,6 @@
 import { computed, type Ref } from "vue";
 import type { Session, Subagent } from "../types/events";
-import { formatTime } from "../utils/format";
+import { formatTime, formatDuration } from "../utils/format";
 
 export interface ChartBar {
   name: string;
@@ -12,10 +12,17 @@ export interface ChartBar {
   subagent: Subagent;
 }
 
+export interface ChartTick {
+  label: string;
+  pct: number;
+}
+
 export interface ChartData {
   bars: ChartBar[];
-  timeLabels: string[];
+  ticks: ChartTick[];
 }
+
+const TICK_COUNT = 5;
 
 const COLORS = [
   "#f59e0b",
@@ -27,12 +34,6 @@ const COLORS = [
   "#f87171",
   "#fbbf24",
 ];
-
-function formatDuration(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
-}
 
 export function useChartData(
   sessions: Ref<Session[]>,
@@ -60,9 +61,10 @@ export function useChartData(
     const paddedEnd = rangeEnd + padding;
     const paddedDuration = paddedEnd - paddedStart;
 
-    const timeLabels: string[] = [];
-    for (let i = 0; i < 5; i++) {
-      timeLabels.push(formatTime(new Date(paddedStart + (paddedDuration * i) / 4)));
+    const ticks: ChartTick[] = [];
+    for (let i = 0; i < TICK_COUNT; i++) {
+      const fraction = i / (TICK_COUNT - 1);
+      ticks.push({ label: formatTime(new Date(paddedStart + paddedDuration * fraction)), pct: fraction * 100 });
     }
 
     const bars: ChartBar[] = subagents.map((agent, i) => {
@@ -81,6 +83,6 @@ export function useChartData(
       };
     });
 
-    return { bars, timeLabels };
+    return { bars, ticks };
   });
 }

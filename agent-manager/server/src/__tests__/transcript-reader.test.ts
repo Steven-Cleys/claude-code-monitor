@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { parseTranscriptLine, extractMetadata, extractSessionTitleFromFile, resolveSessionTranscriptPath, resolveTranscriptPath, hostPathToContainerPath } from "../services/transcript-reader";
+import { parseTranscriptLine, extractMetadata, extractSessionTitleFromFile, buildContextPoints, subagentTranscriptPath, hostPathToContainerPath } from "../services/transcript-reader";
 import type { TranscriptLine, ContentBlock } from "../types/transcript";
 
 describe("parseTranscriptLine", () => {
@@ -73,7 +73,7 @@ describe("parseTranscriptLine", () => {
     const result = parseTranscriptLine(line);
     const content = result!.message?.content as Array<{ type: string }>;
     expect(content).toHaveLength(2);
-    expect(content[1].type).toBe("tool_use");
+    expect(content[1]!.type).toBe("tool_use");
   });
 });
 
@@ -155,30 +155,9 @@ describe("extractMetadata", () => {
   });
 });
 
-describe("resolveSessionTranscriptPath", () => {
-  test("maps every non-alphanumeric character to a dash, like Claude Code does", () => {
-    expect(resolveSessionTranscriptPath("sess-1", "/Users/a/ai_tools/my.app"))
-      .toBe("/claude-projects/-Users-a-ai-tools-my-app/sess-1.jsonl");
-  });
-
-  test("hidden directories produce a double dash", () => {
-    expect(resolveSessionTranscriptPath("sess-1", "/Users/a/code/proj/.superpowers-sdd"))
-      .toBe("/claude-projects/-Users-a-code-proj--superpowers-sdd/sess-1.jsonl");
-  });
-
-  test("spaces become dashes", () => {
-    expect(resolveSessionTranscriptPath("sess-1", "/Users/a/My Projects/demo"))
-      .toBe("/claude-projects/-Users-a-My-Projects-demo/sess-1.jsonl");
-  });
-});
-
 describe("path traversal out of the projects dir", () => {
-  test("a session id with .. segments resolves to null", () => {
-    expect(resolveSessionTranscriptPath("../../etc/x", "/a")).toBeNull();
-  });
-
   test("an agent id with .. segments resolves to null", () => {
-    expect(resolveTranscriptPath("x/../../../../../etc/x", "sess-1", "/a")).toBeNull();
+    expect(subagentTranscriptPath("/claude-projects/-a/sess-1.jsonl", "x/../../../../../etc/x")).toBeNull();
   });
 
   test("a hook transcript path with .. segments resolves to null", () => {
@@ -189,6 +168,13 @@ describe("path traversal out of the projects dir", () => {
   test("a regular hook transcript path maps into the projects dir", () => {
     expect(hostPathToContainerPath("/Users/a/.claude/projects/-Users-a-app/sess-1.jsonl"))
       .toBe("/claude-projects/-Users-a-app/sess-1.jsonl");
+  });
+});
+
+describe("subagentTranscriptPath", () => {
+  test("sits in the session transcript's own folder, whatever the session's cwd became", () => {
+    expect(subagentTranscriptPath("/claude-projects/-Users-a-shop/sess-1.jsonl", "a42"))
+      .toBe("/claude-projects/-Users-a-shop/sess-1/subagents/agent-a42.jsonl");
   });
 });
 
@@ -235,5 +221,54 @@ describe("extractSessionTitleFromFile", () => {
       { type: "user", message: { role: "user", content: 'discussing the ai-title feature' }, timestamp: "2026-07-06T10:01:00.000Z" },
     ]);
     expect(await extractSessionTitleFromFile(path)).toBe("Real title");
+  });
+});
+
+const ts = (sec: number) => new Date(Date.UTC(2026, 6, 8, 10, 0, sec)).toISOString();
+
+function usageLine(id: string, timestamp: string, usage: Partial<Record<string, number>>): TranscriptLine {
+  return {
+    type: "assistant",
+    timestamp,
+    message: {
+      role: "assistant",
+      id,
+      usage: {
+        input_tokens: usage.input ?? 0,
+        output_tokens: usage.output ?? 0,
+        cache_read_input_tokens: usage.cacheRead ?? 0,
+        cache_creation_input_tokens: usage.cacheCreation ?? 0,
+      },
+    },
+  };
+}
+
+describe("buildContextPoints", () => {
+  test("builds one point per assistant message with context sum", () => {
+    const points = buildContextPoints([
+      usageLine("m1", ts(0), { input: 100, cacheRead: 5000, cacheCreation: 200, output: 50 }),
+      usageLine("m2", ts(10), { input: 150, cacheRead: 5300, output: 80 }),
+    ]);
+
+    expect(points).toHaveLength(2);
+    expect(points[0]!.context).toBe(5300);
+    expect(points[1]!.context).toBe(5450);
+  });
+
+  test("dedupes streamed chunks by message id keeping the last", () => {
+    const points = buildContextPoints([
+      usageLine("m1", ts(0), { input: 100, output: 10 }),
+      usageLine("m1", ts(1), { input: 100, output: 90 }),
+    ]);
+
+    expect(points).toHaveLength(1);
+    expect(points[0]!.output).toBe(90);
+  });
+
+  test("ignores user messages and assistant messages without usage", () => {
+    const userLine: TranscriptLine = { type: "user", timestamp: ts(0), message: { role: "user", content: "hi" } };
+    const noUsage: TranscriptLine = { type: "assistant", timestamp: ts(1), message: { role: "assistant" } };
+
+    expect(buildContextPoints([userLine, noUsage])).toEqual([]);
   });
 });

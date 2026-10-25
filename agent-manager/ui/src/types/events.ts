@@ -16,10 +16,10 @@ export interface Session {
   context?: SessionContext | null;
   // Persisted token columns from GET /api/sessions — mapped into `tokens`
   // on fetch so totals survive page reloads.
-  input_tokens?: number | string;
-  output_tokens?: number | string;
-  cache_read_tokens?: number | string;
-  cache_creation_tokens?: number | string;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
   tokens_updated_at?: string | null;
   // Cost reported by Claude Code (summed api_request events from Loki), null
   // when Loki has none for this session.
@@ -38,7 +38,8 @@ export interface TimelineEvent {
   event_type: string;
   tool_name: string | null;
   tool_input: Record<string, unknown> | null;
-  tool_response: Record<string, unknown> | null;
+  // Only on live events; list queries leave it out (see EventDetail).
+  tool_response?: unknown;
   created_at: string;
   // Top-level payload field on SubagentStart/SubagentStop (NOT in tool_input);
   // selected as its own column in every event query, null for other events.

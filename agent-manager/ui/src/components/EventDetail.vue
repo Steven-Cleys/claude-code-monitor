@@ -1,10 +1,23 @@
 <script setup lang="ts">
+import { ref, onMounted } from "vue";
 import type { TimelineEvent } from "../types/events";
 import { formatTime, shortId } from "../utils/format";
 
-defineProps<{
+const props = defineProps<{
   event: TimelineEvent;
 }>();
+
+const toolResponse = ref<unknown>(props.event.tool_response ?? null);
+
+onMounted(async () => {
+  if (props.event.tool_response !== undefined) return;
+  try {
+    const res = await fetch(`/api/events/${props.event.id}`);
+    if (res.ok) toolResponse.value = (await res.json()).tool_response;
+  } catch (err) {
+    console.error("Failed to load tool response:", err);
+  }
+});
 
 const emit = defineEmits<{
   close: [];
@@ -62,18 +75,18 @@ function syntaxHighlight(obj: unknown): string {
         />
       </div>
 
-      <div v-if="event.tool_response">
+      <div v-if="toolResponse">
         <div class="flex items-center gap-2 mb-2">
           <div class="w-0.5 h-3 bg-signal-green/60 rounded-full"></div>
           <span class="text-[0.6rem] uppercase tracking-[0.15em] text-signal-green/80 font-semibold">Response</span>
         </div>
         <pre
           class="text-xs bg-ink/80 rounded border border-ink-border p-3 overflow-auto max-h-72 whitespace-pre-wrap leading-relaxed json-viewer custom-scrollbar"
-          v-html="syntaxHighlight(event.tool_response)"
+          v-html="syntaxHighlight(toolResponse)"
         />
       </div>
 
-      <div v-if="!event.tool_input && !event.tool_response" class="text-xs text-ghost/60 italic py-4 text-center">
+      <div v-if="!event.tool_input && !toolResponse" class="text-xs text-ghost/60 italic py-4 text-center">
         No tool input or response data available.
       </div>
     </div>

@@ -43,12 +43,8 @@ describe("parseCostVector", () => {
 });
 
 describe("liveDays", () => {
-  test("recomputes only today during the day", () => {
-    expect(liveDays(OCT_20 + 12 * 3600_000)).toEqual([OCT_20]);
-  });
-
-  test("also recomputes yesterday right after midnight, for late events", () => {
-    expect(liveDays(OCT_20 + 60_000)).toEqual([OCT_20 - DAY, OCT_20]);
+  test("recomputes yesterday all day, for events that reach Loki hours late", () => {
+    expect(liveDays(OCT_20 + 12 * 3600_000)).toEqual([OCT_20 - DAY, OCT_20]);
   });
 });
 
@@ -69,10 +65,11 @@ describe("Loki", () => {
 
   // Days with log entries at all (for index/stats) and the cost each query
   // returns, keyed by the query's evaluation time.
-  function fakeLoki({ hasData = () => true, cost = () => [] as { session_id: string; value: string }[], down = () => false }: {
+  function fakeLoki({ hasData = () => true, cost = () => [] as { session_id: string; value: string }[], down = () => false, failsAt = () => false }: {
     hasData?: (start: number, end: number) => boolean;
     cost?: (time: number) => { session_id: string; value: string }[];
     down?: () => boolean;
+    failsAt?: (time: number) => boolean;
   }) {
     const queries: { time: number; range: string }[] = [];
     const stats: { start: number; end: number }[] = [];
@@ -90,6 +87,7 @@ describe("Loki", () => {
         }
         const time = Number(params.get("time")) * 1000;
         queries.push({ time, range: params.get("query")?.match(/\[(\d+s)\]/)?.[1] ?? "" });
+        if (failsAt(time)) return new Response("maximum number of series (500) reached", { status: 400 });
         return Response.json(vector(cost(time)));
       },
     });
@@ -117,7 +115,7 @@ describe("Loki", () => {
   });
 
   describe("createCostPoll", () => {
-    test("backfills each closed day once, then recomputes today", async () => {
+    test("recomputes yesterday and today, and backfills each closed day once", async () => {
       const now = OCT_20 + 3600_000;
       const loki = fakeLoki({
         hasData: (_, end) => end > OCT_20 - 2 * DAY,
@@ -136,17 +134,23 @@ describe("Loki", () => {
       await poll();
       await poll();
 
-      const backfill = loki.queries.slice(0, -2);
+      const live = [{ time: OCT_20, range: "86400s" }, { time: now, range: "3600s" }];
+      const backfill = loki.queries.slice(2, -2);
+      expect(loki.queries.slice(0, 2)).toEqual(live);
       expect(backfill[0]).toEqual({ time: OCT_20 - 29 * DAY, range: "86400s" });
       expect(backfill.at(-1)).toEqual({ time: OCT_20, range: "86400s" });
-      expect(loki.queries.slice(-2)).toEqual([{ time: now, range: "3600s" }, { time: now, range: "3600s" }]);
+      expect(loki.queries.slice(-2)).toEqual(live);
+      const liveRows = [
+        { session_id: "sess-1", day: "2026-10-19", cost: 2 },
+        { session_id: "sess-1", day: "2026-10-20", cost: 0.5 },
+      ];
       expect(stored).toEqual([
+        liveRows,
         [
           { session_id: "sess-1", day: "2026-10-18", cost: 2 },
           { session_id: "sess-1", day: "2026-10-19", cost: 2 },
         ],
-        [{ session_id: "sess-1", day: "2026-10-20", cost: 0.5 }],
-        [{ session_id: "sess-1", day: "2026-10-20", cost: 0.5 }],
+        liveRows,
       ]);
     });
 
@@ -161,7 +165,7 @@ describe("Loki", () => {
       await poll();
 
       expect(loki.stats).toEqual([]);
-      expect(loki.queries).toEqual([{ time: OCT_20 + 3600_000, range: "3600s" }]);
+      expect(loki.queries).toEqual([{ time: OCT_20, range: "86400s" }, { time: OCT_20 + 3600_000, range: "3600s" }]);
     });
 
     test("logs an outage once and retries the backfill after it", async () => {
@@ -181,7 +185,62 @@ describe("Loki", () => {
 
       expect(warn).toHaveBeenCalledTimes(1);
       expect(loki.stats.length).toBeGreaterThan(0);
-      expect(loki.queries.at(-1)).toEqual({ time: OCT_20 + 3600_000, range: "3600s" });
+      expect(loki.queries).toContainEqual({ time: OCT_20 + 3600_000, range: "3600s" });
+      warn.mockRestore();
+    });
+
+    test("skips a backfill day that fails without blocking today or the other days", async () => {
+      const now = OCT_20 + 3600_000;
+      const brokenDay = OCT_20 - 2 * DAY;
+      const loki = fakeLoki({
+        hasData: (_, end) => end > OCT_20 - 3 * DAY,
+        cost: () => [{ session_id: "sess-1", value: "1" }],
+        failsAt: (time) => time === brokenDay + DAY,
+      });
+      const warn = spyOn(console, "warn").mockImplementation(() => {});
+      const stored: { day: string }[] = [];
+      const poll = createCostPoll(loki.url, {
+        oldestSessionStart: async () => OCT_20 - 3 * DAY,
+        store: async (rows) => { stored.push(...rows); },
+        now: () => now,
+      });
+
+      await poll();
+      await poll();
+
+      const days = new Set(stored.map((row) => row.day));
+      expect(days.has("2026-10-20")).toBe(true);
+      expect(days.has("2026-10-17")).toBe(true);
+      expect(days.has("2026-10-18")).toBe(false);
+      warn.mockRestore();
+    });
+
+    test("retries a failed backfill day on the next poll and warns about it once", async () => {
+      const now = OCT_20 + 3600_000;
+      const brokenDayQuery = OCT_20 - DAY;
+      let broken = true;
+      const loki = fakeLoki({
+        hasData: (_, end) => end > OCT_20 - 3 * DAY,
+        cost: () => [{ session_id: "sess-1", value: "1" }],
+        failsAt: (time) => broken && time === brokenDayQuery,
+      });
+      const warn = spyOn(console, "warn").mockImplementation(() => {});
+      const stored: { day: string }[] = [];
+      const poll = createCostPoll(loki.url, {
+        oldestSessionStart: async () => OCT_20 - 3 * DAY,
+        store: async (rows) => { stored.push(...rows); },
+        now: () => now,
+      });
+
+      await poll();
+      await poll();
+      broken = false;
+      await poll();
+      await poll();
+
+      expect(stored.map((row) => row.day)).toContain("2026-10-18");
+      expect(loki.queries.filter((q) => q.time === brokenDayQuery)).toHaveLength(3);
+      expect(warn).toHaveBeenCalledTimes(1);
       warn.mockRestore();
     });
 

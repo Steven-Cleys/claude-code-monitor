@@ -4,21 +4,25 @@ import type { BroadcastFn } from "../types/broadcast";
 
 export function startSessionTracker(broadcast: BroadcastFn, intervalMs = SESSION_TRACKER_INTERVAL_MS) {
   const timer = setInterval(async () => {
-    const idleThreshold = new Date(Date.now() - IDLE_TIMEOUT_MS);
+    try {
+      const idleThreshold = new Date(Date.now() - IDLE_TIMEOUT_MS);
 
-    const idled = await sql`
-      UPDATE sessions
-      SET status = 'idle'
-      WHERE status = 'active'
-        AND last_seen < ${idleThreshold}
-      RETURNING id, status, last_seen
-    `;
+      const idled = await sql`
+        UPDATE sessions
+        SET status = 'idle'
+        WHERE status = 'active'
+          AND last_seen < ${idleThreshold}
+        RETURNING id, status, last_seen
+      `;
 
-    for (const session of idled) {
-      broadcast("sessions", {
-        type: "session_status_changed",
-        data: { id: session.id, status: "idle", last_seen: session.last_seen },
-      });
+      for (const session of idled) {
+        broadcast("sessions", {
+          type: "session_status_changed",
+          data: { id: session.id, status: "idle", last_seen: session.last_seen },
+        });
+      }
+    } catch (err) {
+      console.error("Session tracker error:", err);
     }
   }, intervalMs);
 
@@ -60,8 +64,8 @@ export async function clearSessionAttention(sessionId: string) {
   return { changed: Boolean(row) };
 }
 
-// Single place that knows the shape of the session_attention_changed message —
-// it used to be hand-assembled at three call sites that could drift apart.
+// Single place that knows the shape of the session_attention_changed message,
+// so the three call sites cannot drift apart.
 export function broadcastAttentionChanged(
   broadcast: BroadcastFn,
   sessionId: string,
@@ -78,12 +82,14 @@ export function broadcastAttentionChanged(
   });
 }
 
-export async function getActiveSessions(sinceHours = 4) {
+export async function listRecentSessions(sinceHours: number) {
   const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
   return sql`
     SELECT s.*,
       (SELECT COUNT(*) FROM events e WHERE e.session_id = s.id) as event_count,
-      (SELECT e.tool_name FROM events e WHERE e.session_id = s.id ORDER BY e.created_at DESC LIMIT 1) as last_tool
+      (SELECT e.tool_name FROM events e
+       WHERE e.session_id = s.id AND e.tool_name IS NOT NULL
+       ORDER BY e.created_at DESC LIMIT 1) as last_tool
     FROM sessions s
     WHERE s.last_seen > ${since}
     ORDER BY s.needs_attention DESC,

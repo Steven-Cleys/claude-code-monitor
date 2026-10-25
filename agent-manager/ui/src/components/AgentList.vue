@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Session } from "../types/events";
+import type { Session, Subagent } from "../types/events";
 import AgentCard from "./AgentCard.vue";
 
 const props = defineProps<{
@@ -11,7 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [id: string | null];
   filterByAgent: [sessionId: string, agentName: string];
-  inspectAgent: [subagent: import("../types/events").Subagent];
+  inspectAgent: [subagent: Subagent];
   inspectSession: [session: Session];
 }>();
 
@@ -40,8 +40,8 @@ function handleSelect(id: string) {
         class="animate-slide-in"
         @select="handleSelect"
         @filter-by-agent="(sessionId, agentName) => emit('filterByAgent', sessionId, agentName)"
-        @inspect-agent="(agent) => emit('inspectAgent', agent)"
-        @inspect-session="(s) => emit('inspectSession', s)"
+        @inspect-agent="emit('inspectAgent', $event)"
+        @inspect-session="emit('inspectSession', $event)"
       />
     </TransitionGroup>
     <div v-if="sessions.length === 0" class="text-ghost text-xs text-center py-8 tracking-wide">

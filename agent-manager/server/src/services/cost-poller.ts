@@ -1,4 +1,4 @@
-import { COST_LATE_EVENT_MARGIN_MS, COST_POLL_INTERVAL_MS } from "../constants";
+import { COST_POLL_INTERVAL_MS } from "../constants";
 import { sql } from "../db/connection";
 import type { BroadcastFn } from "../types/broadcast";
 
@@ -47,9 +47,11 @@ function startOfDay(ms: number) {
   return Math.floor(ms / DAY_MS) * DAY_MS;
 }
 
+// Yesterday stays live all day: events reach Loki hours late when the
+// collector was down or the laptop slept around midnight.
 export function liveDays(now: number): number[] {
   const today = startOfDay(now);
-  return now - today < COST_LATE_EVENT_MARGIN_MS ? [today - DAY_MS, today] : [today];
+  return [today - DAY_MS, today];
 }
 
 export function backfillDays(from: number, now: number): number[] {
@@ -102,6 +104,26 @@ async function queryDays(lokiUrl: string, days: number[], now: number) {
   return rows;
 }
 
+// A day that fails (such as one over Loki's series limit) does not hold back
+// the rest of the history. It comes back in `failed` for the next poll to
+// retry, and is logged only the first time.
+async function queryClosedDays(lokiUrl: string, days: number[], now: number, warnedDays: Set<number>) {
+  const rows: DayCost[] = [];
+  const failed: number[] = [];
+  for (const day of days) {
+    try {
+      rows.push(...(await queryDay(lokiUrl, day, now)));
+    } catch (err) {
+      failed.push(day);
+      if (!warnedDays.has(day)) {
+        warnedDays.add(day);
+        console.warn(`Cost backfill for ${new Date(day).toISOString().slice(0, 10)} failed, retrying on the next poll:`, err);
+      }
+    }
+  }
+  return { rows, failed };
+}
+
 async function storeCosts(rows: DayCost[], broadcast: BroadcastFn) {
   if (rows.length === 0) return;
   const updated = await sql.begin(async (transaction) => {
@@ -138,7 +160,9 @@ interface CostPollDeps {
 }
 
 export function createCostPoll(lokiUrl: string, { oldestSessionStart, store, now = Date.now }: CostPollDeps) {
-  let backfilled = false;
+  // Closed days still to read, null until the oldest day with data is known.
+  let backfillQueue: number[] | null = null;
+  const warnedDays = new Set<number>();
   let warned = false;
   let running = false;
 
@@ -148,18 +172,19 @@ export function createCostPoll(lokiUrl: string, { oldestSessionStart, store, now
     running = true;
     try {
       const at = now();
-      if (!backfilled) {
-        const oldest = await oldestSessionStart();
-        if (oldest !== null) {
-          const from = await oldestDataDay(lokiUrl, oldest, at);
-          await store(await queryDays(lokiUrl, backfillDays(from, at), at));
-        }
-        backfilled = true;
-      }
-      // Today is re-read whole each time, so events that reach Loki late
-      // still count. Yesterday gets the same right after midnight.
+      // Live days are re-read whole each time, so events that reach Loki late
+      // still count. They go first so a slow backfill never delays them.
       await store(await queryDays(lokiUrl, liveDays(at), at));
       warned = false;
+      if (backfillQueue === null) {
+        const oldest = await oldestSessionStart();
+        backfillQueue = oldest === null ? [] : backfillDays(await oldestDataDay(lokiUrl, oldest, at), at);
+      }
+      if (backfillQueue.length > 0) {
+        const { rows, failed } = await queryClosedDays(lokiUrl, backfillQueue, at, warnedDays);
+        await store(rows);
+        backfillQueue = failed;
+      }
     } catch (err) {
       if (!warned) {
         console.warn(`Cost poll via ${lokiUrl} failed, cards show token estimates until it recovers:`, err);
@@ -171,11 +196,8 @@ export function createCostPoll(lokiUrl: string, { oldestSessionStart, store, now
   };
 }
 
-export function startCostPoller(
-  broadcast: BroadcastFn,
-  lokiUrl = process.env.LOKI_URL,
-  intervalMs = COST_POLL_INTERVAL_MS,
-) {
+export function startCostPoller(broadcast: BroadcastFn) {
+  const lokiUrl = process.env.LOKI_URL;
   if (!lokiUrl) {
     console.log("LOKI_URL not set, cards show token estimates instead of reported cost");
     return () => {};
@@ -189,6 +211,6 @@ export function startCostPoller(
     store: (rows) => storeCosts(rows, broadcast),
   });
   poll();
-  const timer = setInterval(poll, intervalMs);
+  const timer = setInterval(poll, COST_POLL_INTERVAL_MS);
   return () => clearInterval(timer);
 }

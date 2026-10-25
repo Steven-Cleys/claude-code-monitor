@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { buildTurns, type TurnEventRow, type TurnSubagent } from "../services/turns";
-import type { ContextPoint } from "../services/xray";
+import type { ContextPoint } from "../services/transcript-reader";
 
 const ts = (sec: number) => new Date(Date.UTC(2026, 6, 8, 10, 0, sec)).toISOString();
 
@@ -65,6 +65,16 @@ describe("buildTurns", () => {
       duration_ms: 10_000,
       tool_calls: 1,
     });
+  });
+
+  test("titles a background agent's completion notice by its summary, not its raw XML", () => {
+    const notice =
+      "<task-notification>\n<task-id>a4f0</task-id>\n<status>completed</status>\n" +
+      '<summary>Agent "Review cart edge cases" finished</summary>\n<result>Looks good</result>\n</task-notification>';
+
+    const turns = buildTurns([prompt(0, "first ask"), prompt(20, notice)], []);
+
+    expect(turns[1]!.prompt).toBe('Agent "Review cart edge cases" finished');
   });
 
   test("ignores events before the first prompt", () => {

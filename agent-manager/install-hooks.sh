@@ -1,6 +1,6 @@
 #!/bin/bash
 # Install agent-manager hooks into Claude Code settings.
-# Idempotent — safe to run multiple times.
+# Idempotent: safe to run multiple times.
 #
 # Usage:
 #   ./agent-manager/install-hooks.sh

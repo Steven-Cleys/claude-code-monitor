@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { Session, Subagent } from "../types/events";
 import { shortId, timeSince, formatTokenCount, formatCost, modelTier } from "../utils/format";
 import { sessionCost } from "../utils/pricing";
+import { contextWindow } from "../utils/context-window";
 import { getSessionColor } from "../composables/useSessionColors";
 import SubagentTree from "./SubagentTree.vue";
 
@@ -19,18 +20,6 @@ const emit = defineEmits<{
   inspectSession: [session: Session];
 }>();
 
-function statusClass(status: string): string {
-  switch (status) {
-    case "active": return "status-active";
-    case "idle": return "status-idle";
-    default: return "status-ended";
-  }
-}
-
-function statusLabel(status: string): string {
-  return status.toUpperCase();
-}
-
 function cwdShort(cwd: string | null): string {
   if (!cwd) return "";
   const parts = cwd.split("/");
@@ -39,11 +28,11 @@ function cwdShort(cwd: string | null): string {
 
 const cost = computed(() => sessionCost(props.session));
 
-const CONTEXT_WINDOW_TOKENS = 200_000;
+const contextWindowTokens = computed(() => contextWindow(props.session.model));
 
 const contextPct = computed(() => {
   if (!props.session.context) return null;
-  return Math.min(100, Math.round((props.session.context.tokens / CONTEXT_WINDOW_TOKENS) * 100));
+  return Math.min(100, Math.round((props.session.context.tokens / contextWindowTokens.value) * 100));
 });
 
 const contextBarClass = computed(() => {
@@ -90,7 +79,7 @@ async function dismissAttention() {
 
     <!-- Header row: status + ID + time -->
     <div class="flex items-center gap-2 mb-2">
-      <span class="w-2 h-2 rounded-full shrink-0" :class="statusClass(session.status)" />
+      <span class="w-2 h-2 rounded-full shrink-0" :class="`status-${session.status}`" />
       <span class="text-xs font-semibold tracking-wider" :style="{ color: getSessionColor(session.id) }">
         {{ shortId(session.id) }}
       </span>
@@ -99,7 +88,7 @@ async function dismissAttention() {
         'text-signal-yellow': session.status === 'idle',
         'text-ghost': session.status === 'ended',
       }">
-        {{ statusLabel(session.status) }}
+        {{ session.status }}
       </span>
       <button
         class="text-[0.6rem] px-1.5 py-0.5 rounded border border-ink-border text-ghost hover:text-cyan-glow hover:border-cyan-glow/40 transition-colors"
@@ -131,7 +120,7 @@ async function dismissAttention() {
     <div
       v-if="contextPct !== null"
       class="flex items-center gap-2 mb-1.5"
-      :title="`Context: ${formatTokenCount(session.context!.tokens)} / ${formatTokenCount(CONTEXT_WINDOW_TOKENS)} tokens`"
+      :title="`Context: ${formatTokenCount(session.context!.tokens)} / ${formatTokenCount(contextWindowTokens)} tokens`"
     >
       <div class="flex-1 h-1 rounded-full bg-ink-surface overflow-hidden">
         <div
@@ -198,7 +187,7 @@ async function dismissAttention() {
       :subagents="session.subagents"
       :active-filter="selected ? activeSubagentFilter : null"
       @filter-by-agent="(name) => emit('filterByAgent', session.id, name)"
-      @inspect-agent="(agent) => emit('inspectAgent', agent)"
+      @inspect-agent="emit('inspectAgent', $event)"
     />
   </div>
 </template>

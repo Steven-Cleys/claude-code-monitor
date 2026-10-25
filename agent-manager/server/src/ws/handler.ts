@@ -1,6 +1,7 @@
-import type { UpgradeWebSocket } from "hono/bun";
+import type { ServerWebSocket } from "bun";
+import type { UpgradeWebSocket } from "hono/ws";
 
-export function createWebSocketRoute(upgradeWebSocket: UpgradeWebSocket) {
+export function createWebSocketRoute(upgradeWebSocket: UpgradeWebSocket<ServerWebSocket>) {
   return upgradeWebSocket(() => ({
     onOpen(_event, ws) {
       ws.raw?.subscribe("events");
