@@ -7,6 +7,8 @@ A self-hosted observability stack for [Claude Code](https://code.claude.com/docs
 
 Everything runs locally with one `docker compose up`. No data leaves your machine.
 
+![Agent Manager with three sessions, a waiting badge and the subagent timeline](assets/overview.png)
+
 ## Features
 
 **Agent Manager (live)**
@@ -129,6 +131,8 @@ The server also reads the transcripts in `~/.claude/projects` through a read-onl
 
 ## Agent Manager
 
+![Transcript viewer of a session that dispatched a subagent](assets/transcript.png)
+
 ### Data sources
 
 | Data | Source | How |
@@ -188,6 +192,8 @@ Requires [Bun](https://bun.sh).
 | [Usage](http://localhost:3000/d/claude-usage) | Tokens by type and model, trends |
 | [Activity](http://localhost:3000/d/claude-activity) | Commits, pull requests and lines changed |
 | [Claude Code Monitoring](http://localhost:3000/d/claude-code-monitor) | All panels in one view |
+
+![Grafana Costs dashboard with cost by model and cost over time](assets/grafana-costs.png)
 
 ### Metrics
 
