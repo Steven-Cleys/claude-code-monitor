@@ -74,6 +74,8 @@ Add to `~/.claude/settings.json`:
 
 Add `"OTEL_LOG_USER_PROMPTS": "1"` if you also want the prompt text in Loki.
 
+Leave `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE` unset. Claude Code then sends deltas, which the collector turns into running totals (see [How the counters are stored](#how-the-counters-are-stored)).
+
 ### 2. Install the hooks for the Agent Manager
 
 ```bash
@@ -161,7 +163,7 @@ From the [Claude Code monitoring docs](https://docs.anthropic.com/en/docs/claude
 |-----------------|-------------|
 | `claude_code_session_count_total` | CLI sessions started |
 | `claude_code_cost_usage_USD_total` | Cost in USD |
-| `claude_code_token_usage_tokens_total` | Tokens, split by `token_type` (input, output, cacheRead, cacheCreation) |
+| `claude_code_token_usage_tokens_total` | Tokens, split by `type` (input, output, cacheRead, cacheCreation) |
 | `claude_code_active_time_seconds_total` | Active time |
 | `claude_code_lines_of_code_count_total` | Lines of code modified |
 | `claude_code_commit_count_total` | Git commits created |
@@ -170,13 +172,35 @@ From the [Claude Code monitoring docs](https://docs.anthropic.com/en/docs/claude
 
 Every metric carries labels such as `session_id`, `model`, `terminal_type`, `os_type` and `service_version`. Some metrics only appear once the matching event has happened.
 
-```promql
-# Cost by model
-sum by (model) (claude_code_cost_usage_USD_total)
+Read the counters with `increase()` over a range and sum the result. Never sum the raw values: a series starts again from 0 after a collector restart, and the raw value then no longer says anything about the range you look at.
 
-# Tokens by type
-sum by (token_type) (claude_code_token_usage_tokens_total)
+```promql
+# Cost by model over the last 7 days
+sum by (model) (increase(claude_code_cost_usage_USD_total[7d] anchored))
+
+# Tokens by type over the last 24 hours
+sum by (type) (increase(claude_code_token_usage_tokens_total[24h] anchored))
 ```
+
+The `anchored` modifier makes `increase()` the exact difference between the last sample and the sample at the start of the range, without extrapolation at the edges. The dashboards use it everywhere.
+
+### How the counters are stored
+
+Claude Code exports its counters as deltas: each export holds only what happened since the previous one. Prometheus needs running totals, so the collector converts them:
+
+1. The `deltatocumulative` processor adds every delta to a running total per series and keeps that total in memory. A series without new data for 24 hours (`max_stale`) is dropped from memory.
+2. The `prometheus` exporter serves those totals on `:8889` for 25 hours after their last update (`metric_expiration`). That is longer than `max_stale`, so a series never disappears from Prometheus while the collector still holds its total.
+3. Each total carries the time its series started. Prometheus runs with `--enable-feature=created-timestamp-zero-ingestion`, which stores that start as a sample with value 0. Without it, `increase()` would miss the first value of every series, and short sessions would count as nothing.
+4. Prometheus also runs with `--enable-feature=promql-extended-range-selectors`, which provides the `anchored` modifier.
+
+Why deltas and not `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative`? Claude Code's metrics carry no label that identifies the process. Two processes on the same session (for example `claude --resume` in two terminals) would then write competing totals into one series, and every switch between them looks like a reset to Prometheus. With deltas the collector simply adds up what both processes report. The exporter alone cannot do this conversion reliably: it only adds a delta that starts exactly where the previous one ended, which Claude Code does not guarantee after a quiet export interval, so it used to overwrite the total instead.
+
+### Known limitations
+
+- **Collector restart.** The running totals live in the collector's memory. After a restart every series starts again from 0. `increase()` treats that as a counter reset and counts correctly, but anything Claude Code sent while the collector was down is lost.
+- **Sessions idle for more than 24 hours.** The collector forgets the total and the series starts again from 0 on the next export. `increase()` handles this as a reset as well.
+- **Concurrent processes on one session.** The processor drops a delta that arrives with an older timestamp than the last one it accepted for that series. Two processes exporting at nearly the same moment can therefore lose an occasional delta.
+- **Data from before this setup.** Older samples hold overwritten deltas instead of totals, so panels undercount any range before the upgrade. The `claude_code.api_request` events in Loki carry the exact cost of every request and are the better source for that period.
 
 Events land in Loki and can be queried from Grafana:
 
