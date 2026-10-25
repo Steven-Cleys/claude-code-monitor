@@ -106,7 +106,7 @@
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
       "id": 6,
-      "interval": "1h",
+      "interval": "1m",
       "options": { "legend": { "calcs": ["sum", "mean"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[$__interval] anchored))", "legendFormat": "{{model}}", "refId": "A" }],
       "title": "Cost Over Time (by Model)",

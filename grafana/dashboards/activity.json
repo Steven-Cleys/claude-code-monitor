@@ -123,7 +123,7 @@
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
       "id": 7,
-      "interval": "1h",
+      "interval": "1m",
       "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         { "expr": "sum(increase(claude_code_lines_of_code_count_total[$__interval] anchored))", "legendFormat": "Lines Changed", "refId": "A" },
