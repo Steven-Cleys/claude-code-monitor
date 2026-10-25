@@ -90,7 +90,7 @@ This copies `send-hook.sh` to `~/.claude/hooks/` and registers it in `~/.claude/
 | Grafana | http://localhost:3000 (admin / admin) |
 | Prometheus | http://localhost:9090 |
 
-The default credentials are meant for a local machine only. Change them before exposing any port.
+Every port is bound to `127.0.0.1`, so only your own machine can reach the stack. The Agent Manager API has no authentication and serves full session transcripts, and the default credentials are meant for local use, so keep it that way unless you add authentication in front.
 
 ## Agent Manager
 
