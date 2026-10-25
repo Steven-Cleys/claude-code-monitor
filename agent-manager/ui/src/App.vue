@@ -211,9 +211,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown));
           <span class="text-xs font-semibold text-amber-glow">{{ attentionCount }}</span>
         </div>
 
-        <div v-if="totalCost > 0" class="flex items-center gap-2">
+        <div v-if="totalCost.usd > 0" class="flex items-center gap-2">
           <span class="text-[0.65rem] uppercase tracking-widest text-ghost">Cost</span>
-          <span class="text-sm font-semibold text-amber-glow">{{ formatCost(totalCost) }}</span>
+          <span
+            class="text-sm font-semibold text-amber-glow"
+            :title="totalCost.estimated ? 'Includes sessions estimated from tokens' : 'Reported by Claude Code'"
+          >{{ totalCost.estimated ? "≈" : "" }}{{ formatCost(totalCost.usd) }}</span>
         </div>
 
         <div class="h-4 w-px bg-ink-border"></div>

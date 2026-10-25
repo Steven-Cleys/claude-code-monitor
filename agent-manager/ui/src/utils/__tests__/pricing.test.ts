@@ -1,5 +1,5 @@
-import { test, expect } from "bun:test";
-import { calculateCost } from "../pricing";
+import { test, expect, describe } from "bun:test";
+import { calculateCost, sessionCost, totalSessionCost } from "../pricing";
 
 const MTOK = 1_000_000;
 
@@ -37,4 +37,46 @@ test.each([
 
 test("unknown models fall back to the default price", () => {
   expect(rates("some-future-model")).toEqual([3, 15, 0.3, 3.75]);
+});
+
+describe("sessionCost", () => {
+  const tokens = { input: 0, output: MTOK, cache_read: 0, cache_creation: 0 };
+
+  test("uses the cost reported by Claude Code when present", () => {
+    expect(sessionCost({ cost_usd: 1.5, tokens, model: "claude-opus-5-5" })).toEqual({ usd: 1.5, estimated: false });
+  });
+
+  test("keeps a reported cost of zero", () => {
+    expect(sessionCost({ cost_usd: 0, tokens, model: "claude-opus-5-5" })).toEqual({ usd: 0, estimated: false });
+  });
+
+  test("falls back to the token estimate without a reported cost", () => {
+    expect(sessionCost({ cost_usd: null, tokens, model: "claude-opus-5-5" })).toEqual({ usd: 20, estimated: true });
+    expect(sessionCost({ tokens, model: "claude-opus-5-5" })).toEqual({ usd: 20, estimated: true });
+  });
+});
+
+describe("totalSessionCost", () => {
+  const tokens = { output: MTOK };
+
+  test("sums reported costs", () => {
+    expect(totalSessionCost([
+      { cost_usd: 1, tokens, model: "claude-opus-5-5" },
+      { cost_usd: 2, tokens, model: "claude-opus-5-5" },
+    ])).toEqual({ usd: 3, estimated: false });
+  });
+
+  test("is an estimate when any session contributes an estimate", () => {
+    expect(totalSessionCost([
+      { cost_usd: 1, tokens, model: "claude-opus-5-5" },
+      { cost_usd: null, tokens, model: "claude-opus-5-5" },
+    ])).toEqual({ usd: 21, estimated: true });
+  });
+
+  test("sessions without tokens or cost don't make the total an estimate", () => {
+    expect(totalSessionCost([
+      { cost_usd: 1, tokens, model: "claude-opus-5-5" },
+      { cost_usd: null, tokens: undefined, model: null },
+    ])).toEqual({ usd: 1, estimated: false });
+  });
 });

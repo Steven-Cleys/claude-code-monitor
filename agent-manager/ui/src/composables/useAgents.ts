@@ -1,6 +1,6 @@
 import { ref, computed, onMounted } from "vue";
 import type { Session, Subagent, SubagentMetadata, TimelineEvent, WsMessage } from "../types/events";
-import { calculateCost } from "../utils/pricing";
+import { totalSessionCost } from "../utils/pricing";
 
 // Keep the in-memory event list bounded — matches the fetch limit, so a
 // long-lived tab doesn't grow it (and every computed over it) forever.
@@ -107,6 +107,8 @@ export function useAgents() {
                 cache_creation: Number(s.cache_creation_tokens) || 0,
               }
             : undefined,
+          // NUMERIC arrives as a string too.
+          cost_usd: s.cost_usd != null ? Number(s.cost_usd) : null,
         },
       ]),
     );
@@ -240,6 +242,11 @@ export function useAgents() {
         if (session) session.tokens = msg.data.tokens;
         break;
       }
+      case "session_cost": {
+        const session = sessions.value.get(msg.data.id);
+        if (session) session.cost_usd = msg.data.cost_usd;
+        break;
+      }
       case "session_context": {
         const session = sessions.value.get(msg.data.id);
         if (session) session.context = msg.data.context;
@@ -295,13 +302,7 @@ export function useAgents() {
   }
 
   // F1: Total cost across all sessions
-  const totalCost = computed(() => {
-    let sum = 0;
-    for (const s of sessions.value.values()) {
-      sum += calculateCost(s.tokens, s.model);
-    }
-    return sum;
-  });
+  const totalCost = computed(() => totalSessionCost(sessions.value.values()));
 
   const attentionCount = computed(() => {
     let count = 0;

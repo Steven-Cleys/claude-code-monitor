@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import type { Session, Subagent } from "../types/events";
 import { shortId, timeSince, formatTokenCount, formatCost, modelTier } from "../utils/format";
-import { calculateCost } from "../utils/pricing";
+import { sessionCost } from "../utils/pricing";
 import { getSessionColor } from "../composables/useSessionColors";
 import SubagentTree from "./SubagentTree.vue";
 
@@ -36,6 +36,8 @@ function cwdShort(cwd: string | null): string {
   const parts = cwd.split("/");
   return parts.slice(-2).join("/");
 }
+
+const cost = computed(() => sessionCost(props.session));
 
 const CONTEXT_WINDOW_TOKENS = 200_000;
 
@@ -173,8 +175,11 @@ async function dismissAttention() {
         <span v-if="session.event_count" class="text-[0.6rem] text-ghost">
           {{ session.event_count }} events
         </span>
-        <span class="text-xs font-semibold text-amber-glow ml-auto">
-          {{ formatCost(calculateCost(session.tokens, session.model)) }}
+        <span
+          class="text-xs font-semibold text-amber-glow ml-auto"
+          :title="cost.estimated ? 'Estimated from tokens' : 'Reported by Claude Code'"
+        >
+          {{ cost.estimated ? "≈" : "" }}{{ formatCost(cost.usd) }}
         </span>
       </div>
     </div>

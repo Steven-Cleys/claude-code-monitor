@@ -85,3 +85,31 @@ export function calculateCost(tokens: Record<string, number> | undefined, model:
   const cacheWrite = (tokens.cache_creation ?? 0) / 1_000_000 * p.cacheWritePerMillion;
   return input + output + cacheRead + cacheWrite;
 }
+
+export interface SessionCost {
+  usd: number;
+  estimated: boolean;
+}
+
+interface CostSource {
+  cost_usd?: number | null;
+  tokens?: Record<string, number>;
+  model: string | null;
+}
+
+// Claude Code's reported cost covers every API call, subagents included. The
+// estimate only sees the session transcript's tokens at list price.
+export function sessionCost(session: CostSource): SessionCost {
+  if (session.cost_usd != null) return { usd: session.cost_usd, estimated: false };
+  return { usd: calculateCost(session.tokens, session.model), estimated: true };
+}
+
+export function totalSessionCost(sessions: Iterable<CostSource>): SessionCost {
+  const total = { usd: 0, estimated: false };
+  for (const session of sessions) {
+    const cost = sessionCost(session);
+    total.usd += cost.usd;
+    if (cost.estimated && cost.usd > 0) total.estimated = true;
+  }
+  return total;
+}
