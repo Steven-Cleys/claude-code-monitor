@@ -7,6 +7,13 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
+  # Claude Code exports delta sums. The prometheus exporter only adds a delta when it
+  # starts exactly where the previous point ended, which the SDK does not guarantee
+  # after an interval without measurements, so it would overwrite the running total.
+  # This processor keeps one running total per series instead.
+  deltatocumulative:
+    max_stale: 24h
+
   batch:
     timeout: 10s
     send_batch_size: 1024
@@ -14,6 +21,9 @@ processors:
 exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
+    # Longer than max_stale, so a series stays exposed for as long as its running
+    # total is kept and resumes without a gap after a long idle period.
+    metric_expiration: 25h
     resource_to_telemetry_conversion:
       enabled: true
 
@@ -27,7 +37,7 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [deltatocumulative, batch]
       exporters: [prometheus, debug]
     logs:
       receivers: [otlp]
