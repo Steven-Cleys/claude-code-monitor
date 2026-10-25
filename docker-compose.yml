@@ -1,6 +1,6 @@
 services:
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.143.1
     container_name: claude-otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
@@ -12,7 +12,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.9.1
     container_name: claude-prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.3.1
     container_name: claude-grafana
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.6.3
     container_name: claude-loki
     ports:
       - "3100:3100"
