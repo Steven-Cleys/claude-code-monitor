@@ -1,19 +1,8 @@
 import { statSync } from "fs";
 import { sql } from "../db/connection";
-import { readTranscriptFile } from "./transcript-reader";
+import { readTranscriptFile, computeSessionTotals, type SessionTotals } from "./transcript-reader";
 import { TRANSCRIPT_SCAN_INTERVAL_MS } from "../constants";
 import type { BroadcastFn } from "../types/broadcast";
-import type { TranscriptLine, TokenUsage } from "../types/transcript";
-
-export interface SessionTotals {
-  model: string | null;
-  tokens: {
-    input: number;
-    output: number;
-    cache_read: number;
-    cache_creation: number;
-  };
-}
 
 interface ScanState {
   size: number;
@@ -24,32 +13,6 @@ interface ScanState {
 // In-memory only — after a restart the first scan re-reads and re-writes each
 // active session once, which is harmless (full-file recompute is idempotent).
 const scanStates = new Map<string, ScanState>();
-
-// Streamed assistant messages re-emit the same message.id with cumulative
-// usage, so the LAST occurrence per id is authoritative; summing every line
-// would double-count. Usage-bearing lines without an id each count once.
-export function computeSessionTotals(messages: TranscriptLine[]): SessionTotals {
-  const usageById = new Map<string, TokenUsage>();
-  let anonKey = 0;
-  let model: string | null = null;
-
-  for (const msg of messages) {
-    if (!msg.message) continue;
-    if (msg.message.model) model = msg.message.model;
-    if (!msg.message.usage) continue;
-    usageById.set(msg.message.id ?? `anon-${anonKey++}`, msg.message.usage);
-  }
-
-  const tokens = { input: 0, output: 0, cache_read: 0, cache_creation: 0 };
-  for (const usage of usageById.values()) {
-    tokens.input += usage.input_tokens ?? 0;
-    tokens.output += usage.output_tokens ?? 0;
-    tokens.cache_read += usage.cache_read_input_tokens ?? 0;
-    tokens.cache_creation += usage.cache_creation_input_tokens ?? 0;
-  }
-
-  return { model, tokens };
-}
 
 export function hasChanged(previous: SessionTotals | undefined, next: SessionTotals): boolean {
   if (!previous) return true;

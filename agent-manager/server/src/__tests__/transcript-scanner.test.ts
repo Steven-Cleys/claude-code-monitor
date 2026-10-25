@@ -1,5 +1,6 @@
 import { test, expect } from "bun:test";
-import { computeSessionTotals, hasChanged } from "../services/transcript-scanner";
+import { hasChanged } from "../services/transcript-scanner";
+import { computeSessionTotals } from "../services/transcript-reader";
 import type { TranscriptLine } from "../types/transcript";
 
 function assistantLine(

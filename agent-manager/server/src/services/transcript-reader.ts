@@ -1,5 +1,5 @@
 import { existsSync } from "fs";
-import type { TranscriptLine, SubagentMetadata, ContentBlock } from "../types/transcript";
+import type { TranscriptLine, SubagentMetadata, ContentBlock, TokenUsage } from "../types/transcript";
 
 const CLAUDE_PROJECTS_DIR = process.env.CLAUDE_PROJECTS_DIR ?? "/claude-projects";
 
@@ -23,38 +23,56 @@ export async function readTranscriptFile(filePath: string): Promise<TranscriptLi
   return messages;
 }
 
+export interface SessionTotals {
+  model: string | null;
+  tokens: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_creation: number;
+  };
+}
+
+// Streamed assistant messages re-emit the same message.id with cumulative
+// usage, so the LAST occurrence per id is authoritative; summing every line
+// would double-count. Usage-bearing lines without an id each count once.
+export function computeSessionTotals(messages: TranscriptLine[]): SessionTotals {
+  const usageById = new Map<string, TokenUsage>();
+  let anonKey = 0;
+  let model: string | null = null;
+
+  for (const msg of messages) {
+    if (!msg.message) continue;
+    if (msg.message.model) model = msg.message.model;
+    if (!msg.message.usage) continue;
+    usageById.set(msg.message.id ?? `anon-${anonKey++}`, msg.message.usage);
+  }
+
+  const tokens = { input: 0, output: 0, cache_read: 0, cache_creation: 0 };
+  for (const usage of usageById.values()) {
+    tokens.input += usage.input_tokens ?? 0;
+    tokens.output += usage.output_tokens ?? 0;
+    tokens.cache_read += usage.cache_read_input_tokens ?? 0;
+    tokens.cache_creation += usage.cache_creation_input_tokens ?? 0;
+  }
+
+  return { model, tokens };
+}
+
 export function extractMetadata(
   messages: TranscriptLine[],
   agentId: string,
   sessionId: string,
 ): Omit<SubagentMetadata, "transcript_path" | "extracted_at"> {
-  let model: string | null = null;
-  let totalInput = 0;
-  let totalOutput = 0;
-  let cacheRead = 0;
-  let cacheCreation = 0;
+  // The model is the LAST one seen: if a subagent switches models mid-run,
+  // the final turn reflects the model that actually finished the work.
+  const { model, tokens } = computeSessionTotals(messages);
+
   let toolCallCount = 0;
-
   for (const msg of messages) {
-    if (!msg.message) continue;
-
-    // Record the LAST model seen — if a subagent switches models mid-run,
-    // the final turn reflects the model that actually finished the work.
-    if (msg.message.model) {
-      model = msg.message.model;
-    }
-
-    if (msg.message.usage) {
-      totalInput += msg.message.usage.input_tokens ?? 0;
-      totalOutput += msg.message.usage.output_tokens ?? 0;
-      cacheRead += msg.message.usage.cache_read_input_tokens ?? 0;
-      cacheCreation += msg.message.usage.cache_creation_input_tokens ?? 0;
-    }
-
-    if (Array.isArray(msg.message.content)) {
-      for (const block of msg.message.content as ContentBlock[]) {
-        if (block.type === "tool_use") toolCallCount++;
-      }
+    if (!Array.isArray(msg.message?.content)) continue;
+    for (const block of msg.message.content as ContentBlock[]) {
+      if (block.type === "tool_use") toolCallCount++;
     }
   }
 
@@ -62,10 +80,10 @@ export function extractMetadata(
     agent_id: agentId,
     session_id: sessionId,
     model,
-    total_input_tokens: totalInput,
-    total_output_tokens: totalOutput,
-    cache_read_tokens: cacheRead,
-    cache_creation_tokens: cacheCreation,
+    total_input_tokens: tokens.input,
+    total_output_tokens: tokens.output,
+    cache_read_tokens: tokens.cache_read,
+    cache_creation_tokens: tokens.cache_creation,
     tool_call_count: toolCallCount,
   };
 }

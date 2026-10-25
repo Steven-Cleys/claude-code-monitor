@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { parseTranscriptLine, extractMetadata, extractSessionTitleFromFile, resolveSessionTranscriptPath } from "../services/transcript-reader";
-import type { TranscriptLine } from "../types/transcript";
+import type { TranscriptLine, ContentBlock } from "../types/transcript";
 
 describe("parseTranscriptLine", () => {
   test("parses an assistant message with text content", () => {
@@ -117,6 +117,29 @@ describe("extractMetadata", () => {
     expect(meta.cache_read_tokens).toBe(230);
     expect(meta.cache_creation_tokens).toBe(15);
     expect(meta.tool_call_count).toBe(1);
+  });
+
+  test("counts usage once per message id when content blocks are split across lines", () => {
+    const usage = { input_tokens: 3, output_tokens: 400, cache_creation_input_tokens: 20, cache_read_input_tokens: 1000 };
+    const blockLine = (id: string, block: ContentBlock): TranscriptLine => ({
+      type: "assistant",
+      message: { role: "assistant", id, model: "claude-sonnet-5-5", content: [block], usage },
+      timestamp: "2026-10-25T12:00:00.000Z",
+    });
+    const messages: TranscriptLine[] = [
+      blockLine("msg_1", { type: "thinking", thinking: "" }),
+      blockLine("msg_1", { type: "text", text: "Reading both files." }),
+      blockLine("msg_1", { type: "tool_use", id: "t1", name: "Read", input: {} }),
+      blockLine("msg_1", { type: "tool_use", id: "t2", name: "Read", input: {} }),
+      blockLine("msg_2", { type: "text", text: "Done." }),
+    ];
+
+    const meta = extractMetadata(messages, "agent-abc", "session-123");
+    expect(meta.total_input_tokens).toBe(6);
+    expect(meta.total_output_tokens).toBe(800);
+    expect(meta.cache_read_tokens).toBe(2000);
+    expect(meta.cache_creation_tokens).toBe(40);
+    expect(meta.tool_call_count).toBe(2);
   });
 
   test("handles messages with no usage data", () => {
