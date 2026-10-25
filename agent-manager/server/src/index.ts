@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import { cors } from "hono/cors";
 import { createBunWebSocket } from "hono/bun";
+import { localOriginOnly } from "./local-origin";
 import { runMigrations } from "./db/migrate";
 import { createHooksRouter } from "./routes/hooks";
 import { createWebSocketRoute } from "./ws/handler";
@@ -19,7 +19,7 @@ const { upgradeWebSocket, websocket } = createBunWebSocket();
 const app = new Hono();
 
 app.use(logger());
-app.use("/api/*", cors());
+app.use(localOriginOnly);
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
