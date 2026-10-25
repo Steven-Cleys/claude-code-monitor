@@ -21,7 +21,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(max by (session_id, type) (max_over_time(claude_code_token_usage_tokens_total[$__range])))", "refId": "A" }],
+      "targets": [{ "expr": "sum(increase(claude_code_token_usage_tokens_total[$__range] anchored))", "refId": "A" }],
       "title": "Total Tokens",
       "type": "stat"
     },
@@ -38,7 +38,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_token_usage_tokens_total{type=\"input\"}[$__range])))", "refId": "A" }],
+      "targets": [{ "expr": "sum(increase(claude_code_token_usage_tokens_total{type=\"input\"}[$__range] anchored))", "refId": "A" }],
       "title": "Input Tokens",
       "type": "stat"
     },
@@ -55,7 +55,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(max by (session_id) (max_over_time(claude_code_token_usage_tokens_total{type=\"output\"}[$__range])))", "refId": "A" }],
+      "targets": [{ "expr": "sum(increase(claude_code_token_usage_tokens_total{type=\"output\"}[$__range] anchored))", "refId": "A" }],
       "title": "Output Tokens",
       "type": "stat"
     },
@@ -72,7 +72,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
-      "targets": [{ "expr": "sum(max by (session_id, type) (max_over_time(claude_code_token_usage_tokens_total{type=~\"cache.*\"}[$__range])))", "refId": "A" }],
+      "targets": [{ "expr": "sum(increase(claude_code_token_usage_tokens_total{type=~\"cache.*\"}[$__range] anchored))", "refId": "A" }],
       "title": "Cache Tokens",
       "type": "stat"
     },
@@ -89,7 +89,7 @@
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 6 },
       "id": 5,
       "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [{ "expr": "sum by (type) (max by (session_id, type) (max_over_time(claude_code_token_usage_tokens_total[$__range])))", "legendFormat": "{{type}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[$__range] anchored))", "legendFormat": "{{type}}", "refId": "A" }],
       "title": "Tokens by Type",
       "type": "piechart"
     },
@@ -106,7 +106,7 @@
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 6 },
       "id": 6,
       "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
-      "targets": [{ "expr": "sum by (model) (max by (session_id, model, type) (max_over_time(claude_code_token_usage_tokens_total[$__range])))", "legendFormat": "{{model}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total[$__range] anchored))", "legendFormat": "{{model}}", "refId": "A" }],
       "title": "Tokens by Model",
       "type": "piechart"
     },
@@ -123,8 +123,9 @@
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
       "id": 7,
+      "interval": "1h",
       "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[1h]))", "legendFormat": "{{type}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[$__interval] anchored))", "legendFormat": "{{type}}", "refId": "A" }],
       "title": "Token Usage Over Time (by Type)",
       "type": "timeseries"
     },
@@ -141,8 +142,9 @@
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 26 },
       "id": 8,
+      "interval": "1h",
       "options": { "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total[1h]))", "legendFormat": "{{model}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total[$__interval] anchored))", "legendFormat": "{{model}}", "refId": "A" }],
       "title": "Token Usage Over Time (by Model)",
       "type": "timeseries"
     },
@@ -159,7 +161,7 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
       "id": 9,
       "options": { "displayMode": "gradient", "minVizHeight": 10, "minVizWidth": 0, "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "valueMode": "color" },
-      "targets": [{ "expr": "sum by (session_id) (max by (session_id, type) (max_over_time(claude_code_token_usage_tokens_total[$__range])))", "legendFormat": "{{session_id}}", "refId": "A" }],
+      "targets": [{ "expr": "sum by (session_id) (increase(claude_code_token_usage_tokens_total[$__range] anchored)) > 0", "legendFormat": "{{session_id}}", "refId": "A" }],
       "title": "Tokens per Session",
       "type": "bargauge"
     }

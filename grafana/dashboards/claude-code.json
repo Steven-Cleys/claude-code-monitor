@@ -48,7 +48,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(max by (session_id, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))",
+          "expr": "sum(increase(claude_code_cost_usage_USD_total[$__range] anchored))",
           "refId": "A"
         }
       ],
@@ -93,11 +93,11 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "count(group by (session_id) (max_over_time(claude_code_session_count_total[$__range])))",
+          "expr": "sum(increase(claude_code_session_count_total[$__range] anchored))",
           "refId": "A"
         }
       ],
-      "title": "Total Sessions",
+      "title": "Session Starts",
       "type": "stat"
     },
     {
@@ -138,7 +138,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "count(group by (session_id) (max_over_time(claude_code_session_count_total[$__range])))",
+          "expr": "count(sum by (session_id) (increase(claude_code_cost_usage_USD_total[$__range] anchored)) > 0)",
           "refId": "A"
         }
       ],
@@ -200,6 +200,7 @@
       },
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
       "id": 4,
+      "interval": "1h",
       "options": {
         "legend": {
           "calcs": [],
@@ -215,7 +216,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (type) (claude_code_token_usage_tokens_total)",
+          "expr": "sum by (type) (increase(claude_code_token_usage_tokens_total[$__interval] anchored))",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -278,6 +279,7 @@
       },
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 8 },
       "id": 5,
+      "interval": "1m",
       "options": {
         "legend": {
           "calcs": [],
@@ -293,7 +295,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(rate(claude_code_cost_usage_USD_total[5m])) * 60",
+          "expr": "sum(rate(claude_code_cost_usage_USD_total[$__interval] anchored)) * 60",
           "legendFormat": "Cost/min",
           "refId": "A"
         }
@@ -339,7 +341,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(max by (session_id) (max_over_time(claude_code_active_time_seconds_total[$__range])))",
+          "expr": "sum(increase(claude_code_active_time_seconds_total[$__range] anchored))",
           "refId": "A"
         }
       ],
@@ -401,6 +403,7 @@
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
       "id": 7,
+      "interval": "1h",
       "options": {
         "legend": {
           "calcs": [],
@@ -416,7 +419,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (session_id) (claude_code_token_usage_tokens_total)",
+          "expr": "sum by (session_id) (increase(claude_code_token_usage_tokens_total[$__interval] anchored)) > 0",
           "legendFormat": "{{session_id}}",
           "refId": "A"
         }
@@ -464,7 +467,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(max by (session_id) (max_over_time(claude_code_lines_of_code_count_total[$__range])))",
+          "expr": "sum(increase(claude_code_lines_of_code_count_total[$__range] anchored))",
           "refId": "A"
         }
       ],
@@ -509,7 +512,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(max by (session_id) (max_over_time(claude_code_code_edit_tool_decision_total[$__range])))",
+          "expr": "sum(increase(claude_code_code_edit_tool_decision_total[$__range] anchored))",
           "refId": "A"
         }
       ],
@@ -554,7 +557,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "count(group by (session_id) (max_over_time(claude_code_session_count_total[$__range])))",
+          "expr": "count(sum by (session_id) (increase(claude_code_cost_usage_USD_total[$__range] anchored)) > 0)",
           "refId": "A"
         }
       ],
@@ -599,7 +602,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(max by (session_id) (max_over_time(claude_code_commit_count_total[$__range])))",
+          "expr": "sum(increase(claude_code_commit_count_total[$__range] anchored))",
           "refId": "A"
         }
       ],
@@ -644,7 +647,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum(max by (session_id) (max_over_time(claude_code_pull_request_count_total[$__range])))",
+          "expr": "sum(increase(claude_code_pull_request_count_total[$__range] anchored))",
           "refId": "A"
         }
       ],
@@ -696,7 +699,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (model) (max by (session_id, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))",
+          "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[$__range] anchored))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -749,7 +752,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (model) (max by (session_id, model, type) (max_over_time(claude_code_token_usage_tokens_total[$__range])))",
+          "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total[$__range] anchored))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -802,7 +805,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (terminal_type) (max by (session_id, terminal_type, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))",
+          "expr": "sum by (terminal_type) (increase(claude_code_cost_usage_USD_total[$__range] anchored))",
           "legendFormat": "{{terminal_type}}",
           "refId": "A"
         }
@@ -855,7 +858,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (terminal_type) (max by (session_id, terminal_type) (max_over_time(claude_code_active_time_seconds_total[$__range])))",
+          "expr": "sum by (terminal_type) (increase(claude_code_active_time_seconds_total[$__range] anchored))",
           "legendFormat": "{{terminal_type}}",
           "refId": "A"
         }
@@ -918,6 +921,7 @@
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 62 },
       "id": 17,
+      "interval": "1h",
       "options": {
         "legend": {
           "calcs": [],
@@ -933,7 +937,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total[1h]))",
+          "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total[$__interval] anchored))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -996,6 +1000,7 @@
       },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 72 },
       "id": 18,
+      "interval": "1h",
       "options": {
         "legend": {
           "calcs": ["sum"],
@@ -1011,7 +1016,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[1h]))",
+          "expr": "sum by (model) (increase(claude_code_cost_usage_USD_total[$__interval] anchored))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -1060,7 +1065,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (session_id) (max by (session_id, model) (max_over_time(claude_code_cost_usage_USD_total[$__range])))",
+          "expr": "sum by (session_id) (increase(claude_code_cost_usage_USD_total[$__range] anchored)) > 0",
           "legendFormat": "{{session_id}}",
           "refId": "A"
         }
@@ -1121,7 +1126,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "sum by (session_id, model, terminal_type) (max by (session_id, model, terminal_type) (max_over_time(claude_code_cost_usage_USD_total[$__range])))",
+          "expr": "sum by (session_id, model, terminal_type) (increase(claude_code_cost_usage_USD_total[$__range] anchored)) > 0",
           "format": "table",
           "instant": true,
           "refId": "A"
