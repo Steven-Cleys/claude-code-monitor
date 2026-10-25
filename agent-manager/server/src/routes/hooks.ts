@@ -41,6 +41,10 @@ export function createHooksRouter(broadcast: BroadcastFn) {
   const router = new Hono();
 
   router.post("/", async (c) => {
+    // A cross-site page can POST text/plain without a CORS preflight.
+    if (!c.req.header("Content-Type")?.startsWith("application/json")) {
+      return c.json({ error: "Content-Type must be application/json" }, 415);
+    }
     let body: unknown;
     try {
       body = await c.req.json();
