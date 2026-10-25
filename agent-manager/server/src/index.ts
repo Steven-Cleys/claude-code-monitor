@@ -8,6 +8,7 @@ import { createWebSocketRoute } from "./ws/handler";
 import { startSessionTracker } from "./services/session-tracker";
 import { startContextPoller } from "./services/context-poller";
 import { startTranscriptScanner } from "./services/transcript-scanner";
+import { startCostPoller } from "./services/cost-poller";
 import { createSessionsRouter } from "./routes/sessions";
 import { eventsRouter } from "./routes/events";
 import { createTranscriptsRouter } from "./routes/transcripts";
@@ -51,6 +52,7 @@ await runMigrations();
 startSessionTracker(broadcast);
 startContextPoller(broadcast);
 startTranscriptScanner(broadcast);
+startCostPoller(broadcast);
 
 server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),

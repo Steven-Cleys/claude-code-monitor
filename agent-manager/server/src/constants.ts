@@ -14,3 +14,7 @@ export const TURN_END_EVENTS = ["Stop", "StopFailure"] as const;
 // idle_prompt notifications and late/phantom SubagentStops — and therefore
 // must not resurrect an idle session to 'active'.
 export const PASSIVE_EVENTS = ["Notification", "SubagentStop"] as const;
+export const COST_POLL_INTERVAL_MS = 30_000;
+// Claude Code exports log events every few seconds and the collector batches
+// for 10s, so a few minutes covers events that land after midnight.
+export const COST_LATE_EVENT_MARGIN_MS = 5 * 60 * 1000;
