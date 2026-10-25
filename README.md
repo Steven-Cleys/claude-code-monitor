@@ -11,7 +11,7 @@ Everything runs locally with one `docker compose up`. No data leaves your machin
 
 **Agent Manager (live)**
 
-- Agent cards per session with model, working directory, status, a generated session title and running token cost
+- Agent cards per session with model, working directory, status, a generated session title and running cost
 - Subagent tree per session, plus a swim-lane chart of when each subagent was active
 - Live, searchable event timeline grouped into turns, filterable by hook event type
 - Transcript viewer for any session or subagent, which keeps streaming while the session is live
@@ -32,11 +32,11 @@ Claude Code
  │                                           └─▶ Loki (:3100)
  └─ Hooks ─▶ send-hook.sh ─POST─▶ Agent Manager server (:3001) ─WebSocket─▶ Agent Manager UI (:3002)
                                     ├─ Postgres (sessions and events)
-                                    ├─ ~/.claude/projects transcripts (read-only: tokens, model, titles)
-                                    └─ Prometheus (context-window fill)
+                                    ├─ ~/.claude/projects transcripts (read-only: tokens, model, titles, context fill)
+                                    └─ Loki (session cost)
 ```
 
-The two halves use different sources on purpose. OTEL metrics are aggregates, which suits cost trends but says little about a single tool call. Hooks deliver every event in real time but carry no billing data. Session transcripts on disk fill that gap: the server re-reads them for exact token counts, the model and the session title.
+The two halves use different sources on purpose. OTEL metrics are aggregates, which suits cost trends but says little about a single tool call. Hooks deliver every event in real time but carry no billing data. Session transcripts on disk fill that gap: the server re-reads them for exact token counts, the model, the session title and the context-window fill. For cost the server sums the per-request costs Claude Code logs to Loki.
 
 | Part | Tech |
 |------|------|
@@ -102,7 +102,16 @@ Every port is bound to `127.0.0.1`, so only your own machine can reach the stack
 | Events (tool calls, session lifecycle) | Hooks | `PreToolUse`, `PostToolUse`, `SessionStart`, `Stop`, `SubagentStop`, ... |
 | Token counts and model | Transcripts | Active sessions re-read every 10s, deduplicated by message id, plus a final read at turn and session end |
 | Session title | Transcripts | Latest title Claude Code writes into the transcript |
-| Context-window fill | Prometheus | Polled every 20s |
+| Context-window fill | Transcripts | Latest assistant usage in the transcript tail, polled every 20s |
+| Session cost | Loki | `cost_usd` of every `claude_code.api_request` event, summed per session, polled every 30s and stored in Postgres |
+
+#### Session cost
+
+Cards and the header total show the cost Claude Code itself reports. Claude Code logs a `claude_code.api_request` event with the exact cost of every API call, including subagents and background calls such as session titles, and the collector stores these events in Loki. The server sums them per session and UTC day, re-reads today every 30s and stores the session total in Postgres, so it survives page reloads and Loki downtime. On startup it backfills every day since your oldest session.
+
+A session without reported cost shows an estimate instead, marked with `≈`: its transcript tokens times the list prices in `agent-manager/ui/src/utils/pricing.ts`. That happens when telemetry or `OTEL_LOGS_EXPORTER` is off, when Loki is unreachable or `LOKI_URL` is unset, and for sessions older than your Loki data. Subagent rows always show estimates, because the events do not say which subagent made a call.
+
+Known limitation: spend while the stack was down is missing. Claude Code drops events it cannot deliver, and Loki rejects events older than a week, so that gap cannot be filled later. Such a session shows a reported cost lower than its transcript suggests.
 
 ### API
 
@@ -121,6 +130,8 @@ Every port is bound to `127.0.0.1`, so only your own machine can reach the stack
 | `ws://localhost:3001/ws/transcript` | Live transcript updates |
 
 ### Development
+
+Requires [Bun](https://bun.sh).
 
 ```bash
 cd agent-manager/server && bun install && bun test
