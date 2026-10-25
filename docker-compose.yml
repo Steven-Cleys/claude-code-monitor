@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.8-alpine
     container_name: claude-postgres
     environment:
       POSTGRES_DB: agent_manager
