@@ -9,6 +9,9 @@ app.get("/api/health", (c) => c.json({ status: "ok" }));
 const get = (origin?: string) =>
   app.request("/api/health", { headers: origin ? { Origin: origin } : {} });
 
+const getWithHost = (host: string) =>
+  app.request("/api/health", { headers: { Host: host } });
+
 describe("localOriginOnly", () => {
   test("rejects a request from a foreign web page without a CORS grant", async () => {
     const res = await get("https://evil.example");
@@ -32,5 +35,14 @@ describe("localOriginOnly", () => {
 
   test("serves requests without an Origin, like the curl in send-hook.sh", async () => {
     expect((await get()).status).toBe(200);
+  });
+
+  test("rejects a foreign Host, which a DNS rebinding page sends without an Origin", async () => {
+    expect((await getWithHost("evil.example")).status).toBe(403);
+  });
+
+  test("serves a local Host on any port", async () => {
+    expect((await getWithHost("localhost:3001")).status).toBe(200);
+    expect((await getWithHost("127.0.0.1:13001")).status).toBe(200);
   });
 });

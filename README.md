@@ -94,6 +94,8 @@ This copies `send-hook.sh` to `~/.claude/hooks/` and registers it in `~/.claude/
 
 Every port is bound to `127.0.0.1`, so only your own machine can reach the stack. The Agent Manager API has no authentication and serves full session transcripts, and the default credentials are meant for local use, so keep it that way unless you add authentication in front.
 
+The API only answers requests addressed to `localhost` or `127.0.0.1`, which blocks DNS rebinding, so a custom `AGENT_MANAGER_URL` for the hooks must use one of those two hosts.
+
 ## Agent Manager
 
 ### Data sources
