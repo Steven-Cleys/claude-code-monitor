@@ -24,6 +24,9 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=2y'
       - '--web.enable-admin-api'
+      # Start timestamps become a 0 sample, so increase() also counts a series' first value.
+      # The anchored range modifier gives exact increase() without extrapolation.
+      - '--enable-feature=created-timestamp-zero-ingestion,promql-extended-range-selectors'
     depends_on:
       - otel-collector
     restart: unless-stopped
