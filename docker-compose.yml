@@ -46,6 +46,14 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      # Keep everything local: no usage stats, update checks, news feed, avatar
+      # lookups or plugin downloads (the dashboards only use built-in panels).
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_NEWS_NEWS_FEED_ENABLED=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_PLUGINS_PREINSTALL_DISABLED=true
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -55,7 +63,7 @@ services:
     container_name: claude-loki
     ports:
       - "127.0.0.1:3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml -reporting.enabled=false
     volumes:
       - loki_data:/loki
     restart: unless-stopped
