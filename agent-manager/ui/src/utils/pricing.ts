@@ -5,11 +5,33 @@ interface ModelPricing {
   cacheWritePerMillion: number;
 }
 
-// List prices per MTok (cache read ~0.1x input, cache write ~1.25x input at 5m TTL).
+// List prices per MTok (cache read ~0.1x input, cache write ~1.25x input at 5m TTL;
+// Fable/Mythos 5.1 and Opus 5.5 read cache cheaper). Matched with includes(), first
+// hit wins, so a versioned id like "opus-5-5" must come before "opus-5".
 const PRICING_TABLE: { match: string; pricing: ModelPricing }[] = [
+  {
+    match: "fable-5-1",
+    pricing: { inputPerMillion: 10, outputPerMillion: 50, cacheReadPerMillion: 0.25, cacheWritePerMillion: 12.5 },
+  },
   {
     match: "fable-5",
     pricing: { inputPerMillion: 10, outputPerMillion: 50, cacheReadPerMillion: 1, cacheWritePerMillion: 12.5 },
+  },
+  {
+    match: "mythos-5-1",
+    pricing: { inputPerMillion: 10, outputPerMillion: 50, cacheReadPerMillion: 0.25, cacheWritePerMillion: 12.5 },
+  },
+  {
+    match: "mythos-5",
+    pricing: { inputPerMillion: 10, outputPerMillion: 50, cacheReadPerMillion: 1, cacheWritePerMillion: 12.5 },
+  },
+  {
+    match: "opus-5-5",
+    pricing: { inputPerMillion: 4, outputPerMillion: 20, cacheReadPerMillion: 0.2, cacheWritePerMillion: 5 },
+  },
+  {
+    match: "opus-5",
+    pricing: { inputPerMillion: 5, outputPerMillion: 25, cacheReadPerMillion: 0.5, cacheWritePerMillion: 6.25 },
   },
   {
     match: "opus-4",
@@ -21,11 +43,17 @@ const PRICING_TABLE: { match: string; pricing: ModelPricing }[] = [
   },
   {
     match: "sonnet-5",
-    pricing: { inputPerMillion: 3, outputPerMillion: 15, cacheReadPerMillion: 0.3, cacheWritePerMillion: 3.75 },
+    pricing: { inputPerMillion: 2, outputPerMillion: 10, cacheReadPerMillion: 0.2, cacheWritePerMillion: 2.5 },
   },
   {
     match: "claude-3-5-sonnet",
     pricing: { inputPerMillion: 3, outputPerMillion: 15, cacheReadPerMillion: 0.3, cacheWritePerMillion: 3.75 },
+  },
+  // Haiku 5.5 costs 5x more per call when the prompt exceeds 100K tokens. Totals
+  // don't carry per-call prompt size, so this uses the short-prompt rate.
+  {
+    match: "haiku-5",
+    pricing: { inputPerMillion: 0.1, outputPerMillion: 0.5, cacheReadPerMillion: 0.01, cacheWritePerMillion: 0.125 },
   },
   {
     match: "haiku-4",
