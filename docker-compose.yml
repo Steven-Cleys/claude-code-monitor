@@ -69,6 +69,11 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_manager -d agent_manager"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
     restart: unless-stopped
 
   agent-manager-server:
@@ -86,8 +91,11 @@ services:
     volumes:
       - ${HOME}/.claude/projects:/claude-projects:ro
     depends_on:
-      - postgres
-      - loki
+      # The server runs its migrations at startup, so it needs a Postgres that accepts connections.
+      postgres:
+        condition: service_healthy
+      loki:
+        condition: service_started
     restart: unless-stopped
 
   agent-manager-ui:
